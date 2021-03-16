@@ -9,7 +9,18 @@ using System;
 /// </summary>
 public class ClientInstance :  NetworkBehaviour
 {
+    /// <summary>
+    /// Instance of this class
+    /// </summary>
     private static ClientInstance k_ins;
+    /// <summary>
+    /// Current character object or prefab
+    /// </summary>
+    private GameObject _nowplayer = null;
+    /// <summary>
+    /// Current name of player
+    /// </summary>
+    private string _nowPlayerName = "";
 
     [SerializeField]
     public GameObject playerPreb = null;
@@ -20,7 +31,8 @@ public class ClientInstance :  NetworkBehaviour
     public static Action<GameObject> OnOwnersCharacterSpawned;
     public void InvokeCharacterSpawned(GameObject go)
     {
-        Debug.Log("Character spawned');");
+        //Debug.Log("Character spawned');");
+        _nowplayer = go;
         OnOwnersCharacterSpawned?.Invoke(go);
     }
 
@@ -74,6 +86,16 @@ public class ClientInstance :  NetworkBehaviour
         
     }
 
-    
+    /**
+     * Set the  name for lcoal player
+     */
+    public void CI_SetPlayerName(string name)
+    {
+        _nowPlayerName = name;
+        if (_nowPlayerName == null) return;
+
+        PlayerScript ps = _nowplayer.GetComponent<PlayerScript>();
+        ps.PS_SetPlayerName(name);
+    }
     
 }
