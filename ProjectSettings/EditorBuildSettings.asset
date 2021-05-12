@@ -6,12 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/Offline.unity
-    guid: 2cda990e2423bbf4892e6590ba056729
+    path: Assets/Scenes/Log.unity
+    guid: d3ebb03a50085f74fa820e3b008cd6de
   - enabled: 1
-    path: Assets/Scenes/Online.unity
-    guid: 5c1badb4f1d58ce47a12ea7d0efd805c
-  - enabled: 1
-    path: Assets/Scenes/Addictive.unity
-    guid: a757bc59b61d7b24498f35c19124c197
+    path: Assets/Scenes/Koko.unity
+    guid: 4b098f99fbbf53f44b78bfc762aca4ae
   m_configObjects: {}

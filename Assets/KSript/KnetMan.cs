@@ -11,7 +11,7 @@ using System.Collections.Generic;
 
 public class KnetMan : NetworkManager
 {
-    public static Dictionary<NetworkConnection, GameObject> playbook = new Dictionary<NetworkConnection, GameObject>();
+    public static Dictionary<NetworkConnection, GameObject> connbook = new Dictionary<NetworkConnection, GameObject>();
     public static KnetMan knetIns;
     
     [Tooltip("Room Player Prefab")] [Header("Room Player Prefab")] [SerializeField]
@@ -141,7 +141,11 @@ public class KnetMan : NetworkManager
     /// <param name="conn">Connection from client.</param>
     public override void OnServerConnect(NetworkConnection conn)
     {
-        playbook.Add(conn, null);
+        connbook.Add(conn, null);
+        // sending not ready msg
+        NetworkServer.SetClientNotReady(conn);
+        Msg_Welcome msgtocli = new Msg_Welcome {wlcomemsg = $"Hey , my friends {conn.connectionId}", cliconnid = conn.connectionId};
+        conn.Send(msgtocli);
     }
 
     /// <summary>
@@ -172,7 +176,7 @@ public class KnetMan : NetworkManager
         // => appending the connectionId is WAY more useful for debugging!
         player.name = $"{playerPrefab.name} [connId={conn.connectionId}]";
 
-        playbook[conn] = player;
+        connbook[conn] = player;
         
         NetworkServer.AddPlayerForConnection(conn, player);
     }
@@ -184,7 +188,9 @@ public class KnetMan : NetworkManager
     /// <param name="conn">Connection from client.</param>
     public override void OnServerDisconnect(NetworkConnection conn)
     {
-        playbook.Remove(conn);
+        H.klog($"Client {conn.connectionId} just disconnect from server");
+        AssistMan._ins.Client_Disconnect_ser(conn); // send the disconnected conn to assistman
+        connbook.Remove(conn);
         base.OnServerDisconnect(conn);
     }
 
@@ -197,10 +203,31 @@ public class KnetMan : NetworkManager
     /// <para>The default implementation of this function sets the client as ready and adds a player. Override the function to dictate what happens when the client connects.</para>
     /// </summary>
     /// <param name="conn">Connection to the server.</param>
-    public override void OnClientConnect(NetworkConnection conn)
+    public override void OnClientConnect(NetworkConnection serconn)
     {
         H.klog1($"client successful connected to server", this.name);
-        base.OnClientConnect(conn);
+        //Caching ConntoServer, so we can send msg to server
+        AssistMan._ins.conntoserver = serconn;
+        AssistMan._ins.onCliConnect?.Invoke(true);
+        // We will disable auto ready here --------
+    //---       BASE ON CLIENT CONNECT    
+        // OnClientConnect by default calls AddPlayer but it should not do
+        // that when we have online/offline scenes. so we need the
+        // clientLoadedScene flag to prevent it.
+        if (!clientLoadedScene)
+        {
+            // Ready/AddPlayer is usually triggered by a scene load
+            // completing. if no scene was loaded, then Ready/AddPlayer it
+            // here instead.
+    //===>    //***    if (!NetworkClient.ready) NetworkClient.Ready();
+            if (autoCreatePlayer)
+            {
+                NetworkClient.AddPlayer();
+            }
+        }
+        //base.OnClientConnect(conn);
+    // ----     END BASE ON CLIENT CONNECT    
+    serconn.Send(new Msg_Welcome{wlcomemsg = $"Anal, Im connecting to server"});
     }
 
     /// <summary>
@@ -210,6 +237,9 @@ public class KnetMan : NetworkManager
     /// <param name="conn">Connection to the server.</param>
     public override void OnClientDisconnect(NetworkConnection conn)
     {
+        H.klog($"As a client, im disconnecting, try to send msg to server");
+        //sending message to server if in a room, with room id
+        conn.Send(new Msg_Welcome{wlcomemsg = $"Bye, i am leaving"});
         base.OnClientDisconnect(conn);
     }
 
@@ -218,7 +248,10 @@ public class KnetMan : NetworkManager
     /// <para>This is commonly used when switching scenes.</para>
     /// </summary>
     /// <param name="conn">Connection to the server.</param>
-    public override void OnClientNotReady(NetworkConnection conn) { }
+    public override void OnClientNotReady(NetworkConnection conn)
+    {
+        H.klog2($"conn {conn.connectionId} get not ready msg", this.name, "yellow");
+    }
 
     #endregion
 
@@ -236,15 +269,21 @@ public class KnetMan : NetworkManager
 
     /// <summary>
     /// This is invoked when a server is started - including when a host is started.
+    /// This is involed inside STARTSERVER(), STARTHOST() => Register Msg here
     /// <para>StartServer has multiple signatures, but they all cause this hook to be called.</para>
     /// </summary>
     public override void OnStartServer()
     {
         knetIns = this; //set ins of knet to this on server
+        NetworkServer.RegisterHandler<Msg_Welcome>(AssistMan._ins.Msgreq_Welcome);
+        NetworkServer.RegisterHandler<Msg_RoomInGeneral>(AssistMan._ins.Msgreq_RoomInGeneral);
+        NetworkServer.RegisterHandler<Msg_JoinRoom>(AssistMan._ins.Msgreq_JoinRoom);
+        NetworkServer.RegisterHandler<Msg_Lobby>(AssistMan._ins.Msgreq_Lobby);
     }
-
+    
     /// <summary>
     /// This is invoked when the client is started.
+    /// This is involed inside STARTCLIENT() function => Register Msg here
     /// </summary>
     public override void OnStartClient()
     {
@@ -252,8 +291,12 @@ public class KnetMan : NetworkManager
         {
             NetworkClient.RegisterPrefab(roomPlayerPrefab);
         }
+        NetworkClient.RegisterHandler<Msg_Welcome>(AssistMan._ins.Msgres_Welcome);
+        NetworkClient.RegisterHandler<Msg_RoomInGeneral>(AssistMan._ins.Msgres_RoomInGenral);
+        NetworkClient.RegisterHandler<Msg_JoinRoom>(AssistMan._ins.Msgres_JoinRoom);
+        NetworkClient.RegisterHandler<Msg_Lobby>(AssistMan._ins.Msgres_Lobby);
     }
-
+    
     /// <summary>
     /// This is called when a host is stopped.
     /// </summary>

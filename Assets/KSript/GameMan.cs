@@ -14,43 +14,66 @@ public class GameMan : MonoBehaviour
 
     private string defRoomTitle = "Room ID: ";
     //[SerializeField] public List<GameObject> gameIns;
-    [Header("Canvases")]
-    [SerializeField] public List<GameObject> canvases;
-    [SerializeField] public GameObject playerBadge;
+    
+    [Header("UI Group")]
+    [SerializeField] public List<GameObject> uigroups;
     [SerializeField] public TMP_InputField roomidsinput;
+    
     [Header("Interactive Button")]
     [SerializeField] public GameObject readyButt;
     [SerializeField] public GameObject cancelButt;
     [SerializeField] public GameObject startButt;
+    
     [Header("Room Lobby")]
-    [SerializeField] private GameObject roomUIContent;
+    [SerializeField] private GameObject roomLobbyUI;
+    [SerializeField] private GameObject playerBadge;
+
+    // ---- CLIENT SIDE
     [Header("Room Members")]
     [SerializeField] private string currentRoomid_cli ;
-    [SerializeField] private List<NetworkIdentity> roomMember_cli = new List<NetworkIdentity>();
-    public Dictionary<NetworkIdentity, GameObject> badgeGolist_cli = new Dictionary<NetworkIdentity, GameObject>();
-    public Dictionary<string, Room> roomlist_ser = new Dictionary<string, Room>();
+    //[SerializeField] private List<NetworkIdentity> roomMember_cli = new List<NetworkIdentity>();
+    public Dictionary<int, GameObject> memberTab_cli = new Dictionary<int, GameObject>();
+    
+    // --- SERVER SIDE
+            // key: roomid, obj: room obj
+    public Dictionary<string, Room> roomTab_ser = new Dictionary<string, Room>();
+            //key: conn id, obj: room id
+    public Dictionary<int, string> playerTab_ser = new Dictionary<int, string>();
 
     #region ============================ UI METHOD
 
+    public void UIServer()
+    {
+        KnetMan.singleton.StartServer();
+    }
+
+    public void UIClient()
+    {
+        KnetMan.singleton.StartClient();
+    }
+
+    public void UIHost()
+    {
+        KnetMan.singleton.StartHost();
+    }
     public void UICreateRoom()
     {
-        //H.klog($" create room {prep.connectionToClient}");
-        prep.repui.RepCreateRoom();
+        AssistMan._ins.Req_CreateRoom();
     }
 
     public void UIJoinRoom()
     {
         string id = roomidsinput.text;
         roomidsinput.text = "";
-        prep.repui.RepJoinRoom(id);
+        AssistMan._ins.Req_JoinRoom(id);
     }
 
     public void UILeaveRoom()
     {
-        prep.repui.RepLeaveRoom(currentRoomid_cli);
-        this.roomMember_cli.Clear();
-        this.badgeGolist_cli.Clear();
+        AssistMan._ins.Req_LeaveRoom(currentRoomid_cli);
+        //this.roomMember_cli.Clear();
         this.CloseLobbyUI_Cli();
+        this.memberTab_cli.Clear();
         currentRoomid_cli = "";
     }
     public void UIQuit()
@@ -60,12 +83,12 @@ public class GameMan : MonoBehaviour
 
     public void UIReady()
     {
-        prep.repui.RepReady();
+        //prep.repui.RepReady();
     }
 
     public void UIStartGame()
     {
-        prep.repui.RepStartGame(currentRoomid_cli);
+        //prep.repui.RepStartGame(currentRoomid_cli);
     }
     
     public void UILoadScene()
@@ -76,66 +99,93 @@ public class GameMan : MonoBehaviour
     #endregion
 
     #region ============= INTERNAL METHOD
+
+    /// <summary>
+    ///     Enable the game control panel
+    /// </summary>
+    /// <param name="inb"></param>
+    public void SetUIonConnect(bool inb)
+    {
+        uigroups[0].SetActive(false);
+        uigroups[1].SetActive(true);
+    }
     
     // this will be called on instance of gameman on server
     /// <summary>
     /// ADDING TO ROOM LIST NEW ROOM WITH ITS ID ON INSTANCE OF GAME MAN ON SERVER
     /// </summary>
     /// <param name="ids"></param>
-    /// <param name="netiden"></param>
-    public void AssignGameRoom_Ser(string ids, NetworkIdentity netiden)
+    /// <param name="conn"></param>
+    public void SetupRoom_Ser(string ids,NetworkConnection conn, string leadname)
     {
-        Room r = new Room {roomids = ids, leadernetiden = netiden};
-        roomlist_ser.Add(ids, r);
+        Room r = new Room {roomids = ids, leader = conn};
+        r.nameslist.Add(conn.connectionId, leadname);
+        roomTab_ser.Add(ids, r);
     }
+
     /// <summary>
-    /// ASSIGN THE ROOM ID THIS CLIENT IS IN, ADDING MEMBER TO MEMBER LIST
-    /// </summary>
-    /// <param name="netiden"></param>
-    /// <param name="ids"></param>
-    public void AssignGameRoom_Cli(NetworkIdentity netiden, string ids = null)
-    {
-        if(ids != null)
-            currentRoomid_cli = (ids); // set room id, this client is in
-        roomMember_cli.Add(netiden);
-    }
-    /// <summary>
-    /// SHOW THE ROOM UI DISPLAY
+    ///             ADDING PLAYERS CONN TO ROOM LIST ON SERVER
     /// </summary>
     /// <param name="ids"></param>
-    public void OpenRoomLobbyUI_Cli(string ids, bool leader)
+    /// <param name="conn"></param>
+    public void AddRoomPlayer_Ser(string ids, NetworkConnection conn, string pname)
     {
-        canvases[0].SetActive(false); // control panel
-        canvases[1].SetActive(true); //game control panel
-        canvases[2].SetActive(true); // room panel
-        if (leader)
+        if (roomTab_ser.ContainsKey(ids))
         {
-            SetLeaderUI_Cli();
+            roomTab_ser[ids].members.Add(conn);
+            roomTab_ser[ids].nameslist.Add(conn.connectionId, pname);
         }
-        GameObject.Find("RoomTitle").GetComponent<TMP_Text>().text += ids;
-        // NOTE: spawning local game object instance instead
-        //prep.SpawnPlayerBadgeObject();
-        AddRoomPlayerUI_Cli();
-    }
-/// <summary>
-/// ADDING PLAYER BADGE TO ROOM UI
-/// </summary>
-/// <param name="playerbadage"></param>
-    public void AddRoomPlayerUI_Cli(NetworkIdentity iden = null)
-    {
-        GameObject badgeobj = (GameObject) Instantiate(playerBadge);
-        if(iden == null)
-            badgeobj.GetComponent<PlayerBadge>().SetPlayerRep(prep); // set connected prep to this GameMan
-        else
-        {
-            badgeobj.GetComponent<PlayerBadge>().SetPlayerRep(iden.gameObject.GetComponent<PlayerRep>());
-            badgeGolist_cli.Add(iden, badgeobj);
-        }
-        badgeobj.transform.SetParent(roomUIContent.transform);
     }
     
     /// <summary>
-    /// ENABLE LEADER INTERFACE FOR THIS CONNECTION
+    ///             ASSIGN THE ROOM ID to THIS CLIENT
+    ///             OPEN THE LOBBY AND ADD CLI ITSELF
+    /// </summary>
+    /// <param name="ids"></param>
+    public void SetupRoom_Cli(string ids)
+    {
+        currentRoomid_cli = ids;
+        OpenRoomLobbyUI_Cli(ids);
+        AddRoomPlayerUI_Cli();
+    }
+    /// <summary>
+    ///         SHOW THE ROOM UI DISPLAY
+    /// </summary>
+    /// <param name="ids"></param>
+    public void OpenRoomLobbyUI_Cli(string ids)
+    {
+        //TODO: REDO THE OPEN ROOM LOBBY UI
+        //uigroups[1].SetActive(false); // connecting panel
+        roomLobbyUI.SetActive(true); //room panel
+        // set room id text
+        roomLobbyUI.transform.GetChild(0).gameObject.GetComponent<TMP_Text>().text = $"Room: {ids}";
+        //GameObject.Find("RoomTitle").GetComponent<TMP_Text>().text += ids;
+        // NOTE: spawning local game object instance instead
+        //prep.SpawnPlayerBadgeObject();
+        //AddRoomPlayerUI_Cli();
+    }
+/// <summary>
+///             ADDING PLAYER BADGE TO ROOM UI
+/// </summary>
+/// <param name="playerbadage"></param>
+    public void AddRoomPlayerUI_Cli(int connid = -1, string disname = "")
+    {
+        GameObject badgeobj = (GameObject) Instantiate(playerBadge);
+        if (connid != -1)
+        {
+            memberTab_cli.Add(connid, badgeobj);
+            badgeobj.transform.GetChild(1).GetComponent<TMP_Text>().text = disname;
+        }
+        else
+        {
+            // get name from local player data scriptable object
+            badgeobj.transform.GetChild(1).GetComponent<TMP_Text>().text = PlayerMan._ins.playerdat.GetName();
+        }
+        badgeobj.transform.SetParent(roomLobbyUI.transform);
+    }
+    
+    /// <summary>
+    ///         ENABLE LEADER INTERFACE FOR THIS CONNECTION
     /// </summary>
     public void SetLeaderUI_Cli()
     {
@@ -143,40 +193,34 @@ public class GameMan : MonoBehaviour
         startButt.SetActive(true);
         //startButt.GetComponent<Button>().interactable = false;
     }
-    
+    /// <summary>
+    ///     Remove Room Lobby UI on leaving or disconnect
+    /// </summary>
     public void CloseLobbyUI_Cli()
     {
-        cancelButt.SetActive(false);
-        readyButt.SetActive(true);
-        startButt.SetActive(false);
-        int roomuichildcount = roomUIContent.transform.childCount;
-        for (int i = 0; i < roomuichildcount; i++)
+        int roomuichildcount = roomLobbyUI.transform.childCount;
+        // skip the title child element
+        for (int i = 1; i < roomuichildcount; i++)
         {
-            GameObject tgo = roomUIContent.transform.GetChild(i).gameObject;
+            GameObject tgo = roomLobbyUI.transform.GetChild(i).gameObject;
             Destroy(tgo);
         }
-        GameObject.Find("RoomTitle").GetComponent<TMP_Text>().text = "";
-
-        canvases[2].SetActive(false);
-        canvases[1].SetActive(false);
-        canvases[0].SetActive(true);
+        roomLobbyUI.transform.GetChild(0).gameObject.GetComponent<TMP_Text>().text = $"";
+        //GameObject.Find("RoomTitle").GetComponent<TMP_Text>().text = "";
     }
     /// <summary>
     /// REMOVE THE IDEN FROM THE LOCAL LIST
     /// REMOVE THE BADGE UI OF THAT IDEN
     /// </summary>
     /// <param name="iden"></param>
-    public void RemovePlayer_Cli(NetworkIdentity iden)
+    public void RemovePlayer_Cli(int connid)
     {
-        roomMember_cli.Remove(iden);
-        H.klog($"Remove player rquest from server - iden {iden.netId}");
-        if (badgeGolist_cli.ContainsKey(iden))
+        if (memberTab_cli.ContainsKey(connid))
         {
-            H.klog($"Found iden to remove");
-            GameObject go = badgeGolist_cli[iden];
-            H.klog($"found Badge go {go}");
-            badgeGolist_cli.Remove(iden);
-            Destroy(go);
+            GameObject playerbadge = memberTab_cli[connid];
+            memberTab_cli[connid] = null;
+            Destroy(playerbadge);
+            memberTab_cli.Remove(connid);
         }
     }
 /// <summary>
@@ -193,20 +237,28 @@ public class GameMan : MonoBehaviour
     public class Room
     {
         public string roomids;
-        public NetworkIdentity leadernetiden;
+        //TODO : REMOVE OR MODIFY TO FIT NEW DESIGN
+        /*public NetworkIdentity leadernetiden;
         public List<NetworkIdentity> roommember = new List<NetworkIdentity>();
-        public bool allReady = false;
+        public bool allReady = false;*/
+        //----
+
+        public NetworkConnection leader;
+        public List<NetworkConnection> members = new List<NetworkConnection>();
+        public Dictionary<int, string> nameslist = new Dictionary<int, string>();
         public Room() { }
     }
     
 
     #endregion
-    
-    
+
+    #region ========== Start & Init 
     // Start is called before the first frame update
     void Start()
     {
         ins = this;
+        InitUI();
+        SetupEventSub();
     }
 
     // Update is called once per frame
@@ -214,4 +266,17 @@ public class GameMan : MonoBehaviour
     {
         
     }
+
+    private void InitUI()
+    {
+        uigroups[0].SetActive(true);
+        uigroups[1].SetActive(false);
+    }
+
+    private void SetupEventSub()
+    {
+        AssistMan._ins.onCliConnect += SetUIonConnect;
+    }
+    #endregion
+
 }

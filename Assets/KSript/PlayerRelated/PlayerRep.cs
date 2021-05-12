@@ -12,7 +12,8 @@ public class PlayerRep : NetworkBehaviour
     private static PlayerRep ins;
     private AsyncOperation sceneloadasync = null;
 
-    public RepUIHandler repui;
+    //TODO: FIX REPUI HANDLER
+    //public RepUIHandler repui;
     public Action<int> flagChangedEvn;
     public Action<string> nameChangedEvn;
     #region ============ SYNC VAR OF ANY TYPE
@@ -76,7 +77,7 @@ public class PlayerRep : NetworkBehaviour
     public override void OnStartAuthority()
     {
         ins = this;
-        repui = this.gameObject.GetComponent<RepUIHandler>();
+        //repui = this.gameObject.GetComponent<RepUIHandler>();
         CmdGetmyConnId();
         base.OnStartAuthority();
     }
@@ -105,7 +106,7 @@ public class PlayerRep : NetworkBehaviour
         if (NetworkServer.active && conn != null)
         {
             GameObject go = null;
-            if (KnetMan.playbook.TryGetValue(conn, out go))
+            if (KnetMan.connbook.TryGetValue(conn, out go))
             {
                 ins = go.GetComponent<PlayerRep>();
                 return ins;
