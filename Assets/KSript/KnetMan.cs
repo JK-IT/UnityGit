@@ -155,7 +155,8 @@ public class KnetMan : NetworkManager
     /// <param name="conn">Connection from client.</param>
     public override void OnServerReady(NetworkConnection conn)
     {
-        H.klog($"Client {conn} says IT IS READY!!!! AFTER SCENE FINISH LOADING");
+        //H.klog($"Client {conn} says IT IS READY!!!! AFTER SCENE FINISH LOADING");
+        H.klog($"Client {conn} says IT IS READY!!!! yayy");
         base.OnServerReady(conn);
     }
 
@@ -219,7 +220,7 @@ public class KnetMan : NetworkManager
             // Ready/AddPlayer is usually triggered by a scene load
             // completing. if no scene was loaded, then Ready/AddPlayer it
             // here instead.
-    //===>    //***    if (!NetworkClient.ready) NetworkClient.Ready();
+    //===>    //***    if (!NetworkClient.ready) NetworkClient.Ready();********************
             if (autoCreatePlayer)
             {
                 NetworkClient.AddPlayer();

@@ -83,14 +83,19 @@ public class GameMan : MonoBehaviour
 
     public void UIReady()
     {
-        //prep.repui.RepReady();
+        AssistMan._ins.Req_ReadyFlag(currentRoomid_cli, true);
     }
 
     public void UIStartGame()
     {
         //prep.repui.RepStartGame(currentRoomid_cli);
     }
-    
+
+    public void UICancelReady()
+    {
+        AssistMan._ins.Req_ReadyFlag(currentRoomid_cli, false);
+    }
+
     public void UILoadScene()
     {
         prep.RepLoadScene();
@@ -246,6 +251,7 @@ public class GameMan : MonoBehaviour
         public NetworkConnection leader;
         public List<NetworkConnection> members = new List<NetworkConnection>();
         public Dictionary<int, string> nameslist = new Dictionary<int, string>();
+        public Dictionary<int, bool> readyflags = new Dictionary<int, bool>();
         public Room() { }
     }
     

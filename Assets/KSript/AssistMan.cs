@@ -39,54 +39,46 @@ public class AssistMan : MonoBehaviour
         //H.klog($"Name that ask to CCREATE from UI : {PlayerMan._ins.playerdat.GetName()}");
         conntoserver.Send(new Msg_RoomInGeneral{urname =  PlayerMan._ins.playerdat.GetName(), comcode = ComCode.CreateRoom});
     }
-
+    /// <summary>
+    ///     CLIENT CALLS THIS
+    /// </summary>
+    /// <param name="idtojoin"></param>
     public void Req_JoinRoom(string idtojoin)
     {
         //H.klog($"Name When requesting to join from UI : {PlayerMan._ins.playerdat.GetName()}");
         conntoserver.Send(new Msg_JoinRoom{idtojoin = idtojoin, mename =  PlayerMan._ins.playerdat.GetName()});
     }
     /// <summary>
-    ///     CAlled from Client
+    ///     CLIENT CALLS THIS
     /// </summary>
     /// <param name="roomid"></param>
     public void Req_LeaveRoom(string roomid)
     {
         conntoserver.Send(new Msg_RoomInGeneral{comcode = ComCode.LeaveRoom, roomids =  roomid});
     }
-    
+
+    public void Req_ReadyFlag(string roomid, bool flg)
+    {
+        conntoserver.Send(new Msg_Lobby{comcode = ComCode.ReadyFlag, roomid = roomid, rdyFlag = flg});
+    }
+
     /// <summary>
+    ///     SERVER CALLS THIS
     ///     Function will be called in network manager, when a player disconnect
     ///     Remove disconnected player from the room
     /// </summary>
     /// <param name="conn"></param>
     public void Client_Disconnect_ser(NetworkConnection conn)
     {
-        H.klog($"Function Called to remove {conn.connectionId} from Game Manager");
         if (GameMan.ins.playerTab_ser.ContainsKey(conn.connectionId))
         {   //get room id from player table
             string roid = GameMan.ins.playerTab_ser[conn.connectionId];
-            // send msg to all players in the room
-            GameMan.Room ro = GameMan.ins.roomTab_ser[roid];
-            //prepare message to send
-            Msg_Lobby mess = new Msg_Lobby { playerconnid = conn.connectionId, comcode = ComCode.LeaveRoom};
-            if (conn != ro.leader)
+            if (GameMan.ins.roomTab_ser.ContainsKey(roid))
             {
-                ro.leader.Send(mess);
-                ro.members.Remove(conn);
-                ro.nameslist.Remove(conn.connectionId);
+                LeaveAndPromote(roid, conn, new Msg_Lobby{comcode = ComCode.LeaveRoom, playerconnid = conn.connectionId});
             }
-            else
-            {   // promote the next one to be leader, need to be in different order
-                ro.nameslist.Remove(ro.leader.connectionId); // remove name of conn as leader
-                ro.leader = ro.members[0]; // promote
-                ro.leader.Send(mess);
-                ro.members.Remove(ro.leader);
-            }
-            // loop over members and send them msg to remove from their local lobby
-            for (int i = 0; i < ro.members.Count; i++)
-            {
-                ro.members[i].Send(mess);
-            }
+            H.klog($"Function Called to remove DISCONNECTED {conn.connectionId} from Game Manager");
+            GameMan.ins.playerTab_ser.Remove(conn.connectionId);
         }
     }
     #endregion
@@ -124,43 +116,12 @@ public class AssistMan : MonoBehaviour
             //cli who sends this still connect to server
             if (GameMan.ins.roomTab_ser.ContainsKey(inmsg.roomids))
             {
-                GameMan.Room ro = GameMan.ins.roomTab_ser[inmsg.roomids];
-                if (cliconn == ro.leader)
-                {
-                    if (ro.members.Count != 0)
-                    {
-                        // send msg first
-                        for (int i = 0; i < ro.members.Count; i++)
-                        {
-                            ro.members[i].Send(resmsg);
-                        }
-                        // then promote
-                        ro.nameslist.Remove(ro.leader.connectionId); // remove name of leader
-                        ro.leader = ro.members[0]; // assign new leader
-                        ro.members.Remove(ro.leader); // remove the member that is promoted to leader
-                    }
-                    else
-                    {
-                        // remove the room from room list, cuz no one else left
-                        GameMan.ins.roomTab_ser.Remove(inmsg.roomids);
-                    }
-                }
-                else
-                {
-                    ro.leader.Send(resmsg);
-                    // remove name ofplayer that leave
-                    ro.nameslist.Remove(cliconn.connectionId);
-                    // remove player from room member 
-                    ro.members.Remove(cliconn);
-                    // loop over and send msg to the rest member in room
-                    for (int i = 0; i < ro.members.Count; i++)
-                    {
-                        ro.members[i].Send(resmsg);
-                    }
-                }
+                LeaveAndPromote(inmsg.roomids, cliconn, resmsg);
             }
             // remove player from player table
-            GameMan.ins.playerTab_ser.Remove(cliconn.connectionId);
+            H.klog($"remove LEAVING {cliconn.connectionId} from Game Manager");
+            if(GameMan.ins.playerTab_ser.ContainsKey(cliconn.connectionId))
+                GameMan.ins.playerTab_ser.Remove(cliconn.connectionId);
         }
     }
 
@@ -227,7 +188,23 @@ public class AssistMan : MonoBehaviour
     
     public void Msgreq_Lobby(NetworkConnection cliconn, Msg_Lobby climsg)
     {
-        
+        if (climsg.comcode == ComCode.ReadyFlag)
+        {
+            if (GameMan.ins.roomTab_ser.ContainsKey(climsg.roomid))
+            {
+                GameMan.Room ro = GameMan.ins.roomTab_ser[climsg.roomid];
+                if (ro.readyflags.ContainsKey(cliconn.connectionId))
+                    ro.readyflags[cliconn.connectionId] = climsg.rdyFlag;
+                else
+                    ro.readyflags.Add(cliconn.connectionId, climsg.rdyFlag);
+
+                if (ro.readyflags.Count == 4)
+                {
+                    //todo: check bool of all flag, then send msg to enable start button on leader machine
+                }
+            }
+            
+        }
     }
 
     public void Msgres_Lobby(Msg_Lobby sermsg)
@@ -241,7 +218,53 @@ public class AssistMan : MonoBehaviour
     }
     
     #endregion
+
+    #region ============= HELPER FUNCTIONS
+    // SERVER CALLS THIS TO REMOVE AND PROMOTE NEW LEADER OR REMOVE ROOM FROM RECORD
+    private void LeaveAndPromote(string roomid,NetworkConnection cliconn  ,Msg_Lobby mess)
+    {
+        if (GameMan.ins.roomTab_ser.ContainsKey(roomid))
+        {
+            // send msg to all players in the room
+            GameMan.Room ro = GameMan.ins.roomTab_ser[roomid];
+            if (ro.members.Count == 0)
+            {
+                // remove the room from room list, cuz no one else left
+                GameMan.ins.roomTab_ser.Remove(roomid);
+            }
+            else
+            {
+                if (cliconn != ro.leader)
+                {
+                    ro.leader.Send(mess);
+                    ro.members.Remove(cliconn);
+                    ro.nameslist.Remove(cliconn.connectionId);
+                }
+                else
+                {
+                    // promote the next one to be leader, need to be in different order
+                    ro.nameslist.Remove(ro.leader.connectionId); // remove name of conn as leader
+                    ro.leader = ro.members[0]; // promote
+                    ro.leader.Send(mess);
+                    ro.members.Remove(ro.leader);
+                }
+
+                // loop over members and send them msg to remove from their local lobby
+                for (int i = 0; i < ro.members.Count; i++)
+                {
+                    ro.members[i].Send(mess);
+                }
+
+                // remove flag from flag list
+                if (ro.readyflags.ContainsKey(cliconn.connectionId))
+                {
+                    ro.readyflags.Remove(cliconn.connectionId);
+                }
+            }
+        }
+    }
     
-    
+
+    #endregion
     
 }

@@ -13,7 +13,8 @@ public enum ComCode
 {
     CreateRoom,
     LeaveRoom,
-    JoinRoom
+    JoinRoom,
+    ReadyFlag
 }
 
 
@@ -40,8 +41,12 @@ public struct Msg_JoinRoom : NetworkMessage
 public struct Msg_Lobby : NetworkMessage
 {
     public ComCode comcode;
+    public string roomid;
     
     //info send from server
     public int playerconnid;
     public string playername;
+    
+    //info send from client
+    public bool rdyFlag;
 }
