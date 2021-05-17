@@ -84,7 +84,7 @@ public class PlayerRep : NetworkBehaviour
 
     public override void OnStartLocalPlayer()
     {
-        GameMan.SetRep(); // set reference of Player Rep of GameMan 
+        //GameMan.SetRep(); // set reference of Player Rep of GameMan 
         base.OnStartLocalPlayer();
     }
 

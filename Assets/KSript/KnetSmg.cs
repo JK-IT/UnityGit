@@ -14,9 +14,11 @@ public enum ComCode
     CreateRoom,
     LeaveRoom,
     JoinRoom,
-    ReadyFlag
+    ReadyFlag,
+    AllReady,
+    SetLeader,
+    ChangeLeader
 }
-
 
 public struct Msg_RoomInGeneral : NetworkMessage
 {
@@ -35,6 +37,9 @@ public struct Msg_JoinRoom : NetworkMessage
     public List<int> members;
     public int memcount;
     public List<string> roommemnames;
+    public int leaderid;
+    public string leadername;
+    public List<bool> memstate;
     public bool error;    
 }
 
@@ -46,6 +51,9 @@ public struct Msg_Lobby : NetworkMessage
     //info send from server
     public int playerconnid;
     public string playername;
+    public string rdyornot;
+    public bool ureleader;
+    public bool enaRoomStart;
     
     //info send from client
     public bool rdyFlag;

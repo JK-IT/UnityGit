@@ -278,8 +278,8 @@ public class KnetMan : NetworkManager
         knetIns = this; //set ins of knet to this on server
         NetworkServer.RegisterHandler<Msg_Welcome>(AssistMan._ins.Msgreq_Welcome);
         NetworkServer.RegisterHandler<Msg_RoomInGeneral>(AssistMan._ins.Msgreq_RoomInGeneral);
-        NetworkServer.RegisterHandler<Msg_JoinRoom>(AssistMan._ins.Msgreq_JoinRoom);
-        NetworkServer.RegisterHandler<Msg_Lobby>(AssistMan._ins.Msgreq_Lobby);
+        NetworkServer.RegisterHandler<Msg_JoinRoom>(AssistMan._ins.MsgtoSer_JoinRoom);
+        NetworkServer.RegisterHandler<Msg_Lobby>(AssistMan._ins.MsgtoSer_Lobby);
     }
     
     /// <summary>
@@ -294,8 +294,8 @@ public class KnetMan : NetworkManager
         }
         NetworkClient.RegisterHandler<Msg_Welcome>(AssistMan._ins.Msgres_Welcome);
         NetworkClient.RegisterHandler<Msg_RoomInGeneral>(AssistMan._ins.Msgres_RoomInGenral);
-        NetworkClient.RegisterHandler<Msg_JoinRoom>(AssistMan._ins.Msgres_JoinRoom);
-        NetworkClient.RegisterHandler<Msg_Lobby>(AssistMan._ins.Msgres_Lobby);
+        NetworkClient.RegisterHandler<Msg_JoinRoom>(AssistMan._ins.MsgtoCli_JoinRoom);
+        NetworkClient.RegisterHandler<Msg_Lobby>(AssistMan._ins.MsgtoCli_Lobby);
     }
     
     /// <summary>

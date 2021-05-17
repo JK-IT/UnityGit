@@ -13,7 +13,7 @@ public class GameMan : MonoBehaviour
     private static PlayerRep prep = null;
 
     private string defRoomTitle = "Room ID: ";
-    //[SerializeField] public List<GameObject> gameIns;
+    private GameObject ownRoomLobbyObj;
     
     [Header("UI Group")]
     [SerializeField] public List<GameObject> uigroups;
@@ -71,10 +71,12 @@ public class GameMan : MonoBehaviour
     public void UILeaveRoom()
     {
         AssistMan._ins.Req_LeaveRoom(currentRoomid_cli);
-        //this.roomMember_cli.Clear();
-        this.CloseLobbyUI_Cli();
+        this.CloseLobbyUI_Cli(); // clear all room lobby member
         this.memberTab_cli.Clear();
         currentRoomid_cli = "";
+        // todo: fix this later, cuz u don't need it in released version
+        //clear out the start button , if this client is a leader earlier
+        ResetGameRoomUI();
     }
     public void UIQuit()
     {
@@ -84,6 +86,8 @@ public class GameMan : MonoBehaviour
     public void UIReady()
     {
         AssistMan._ins.Req_ReadyFlag(currentRoomid_cli, true);
+        // -1 as local badge
+        memberTab_cli[-1].transform.GetChild(2).GetComponent<TMP_Text>().text = "Ready";
     }
 
     public void UIStartGame()
@@ -94,6 +98,8 @@ public class GameMan : MonoBehaviour
     public void UICancelReady()
     {
         AssistMan._ins.Req_ReadyFlag(currentRoomid_cli, false);
+        // -1 as local badge
+        memberTab_cli[-1].transform.GetChild(2).GetComponent<TMP_Text>().text = "Not Ready";
     }
 
     public void UILoadScene()
@@ -105,6 +111,46 @@ public class GameMan : MonoBehaviour
 
     #region ============= INTERNAL METHOD
 
+    /// <summary>
+    ///         ENABLE LEADER UI
+    /// </summary>
+    /// <param name="enordis"></param>
+    public void SetLeaderUI(bool enordis)
+    {
+        if (enordis)
+        {
+            startButt.SetActive(true);
+            startButt.GetComponent<Button>().interactable = false;
+            readyButt.SetActive(false);
+            // set up difference text for player badge
+            memberTab_cli[-1].transform.GetChild(2).GetComponent<TMP_Text>().text = "Leader";
+        }
+        else
+        {
+            ResetGameRoomUI();
+        }
+    }
+
+    public void EnableStartButton(bool enaornot)
+    {
+        if (enaornot)
+            startButt.GetComponent<Button>().interactable = true;
+        else
+            startButt.GetComponent<Button>().interactable = false;
+    }
+
+    public void ResetGameRoomUI()
+    {
+        startButt.SetActive(false);
+        readyButt.SetActive(true);
+    }
+    public void ChangLeader_Cli(int leaderid)
+    {
+        if (memberTab_cli.ContainsKey(leaderid))
+        {
+            memberTab_cli[leaderid].transform.GetChild(2).GetComponent<TMP_Text>().text = "Leader";
+        }
+    }
     /// <summary>
     ///     Enable the game control panel
     /// </summary>
@@ -147,11 +193,15 @@ public class GameMan : MonoBehaviour
     ///             OPEN THE LOBBY AND ADD CLI ITSELF
     /// </summary>
     /// <param name="ids"></param>
-    public void SetupRoom_Cli(string ids)
+    /// <param name="setleader"> enable leader features if the client request creating a room</param>
+    public void SetupRoom_Cli(string ids, bool setleader = false)
     {
         currentRoomid_cli = ids;
         OpenRoomLobbyUI_Cli(ids);
-        AddRoomPlayerUI_Cli();
+        if(setleader)
+            AddRoomPlayerUI_Cli(-1, "", true); // add self as leader
+        else
+            AddRoomPlayerUI_Cli(); // add self as normal player
     }
     /// <summary>
     ///         SHOW THE ROOM UI DISPLAY
@@ -173,30 +223,36 @@ public class GameMan : MonoBehaviour
 ///             ADDING PLAYER BADGE TO ROOM UI
 /// </summary>
 /// <param name="playerbadage"></param>
-    public void AddRoomPlayerUI_Cli(int connid = -1, string disname = "")
+    public void AddRoomPlayerUI_Cli(int connid = -1, string disname = "", bool isleader = false, bool rdystate = false)
     {
         GameObject badgeobj = (GameObject) Instantiate(playerBadge);
         if (connid != -1)
         {
-            memberTab_cli.Add(connid, badgeobj);
             badgeobj.transform.GetChild(1).GetComponent<TMP_Text>().text = disname;
         }
         else
         {
-            // get name from local player data scriptable object
             badgeobj.transform.GetChild(1).GetComponent<TMP_Text>().text = PlayerMan._ins.playerdat.GetName();
         }
+
+        if (isleader)
+            badgeobj.transform.GetChild(2).GetComponent<TMP_Text>().text = "Leader";
+
+        if (rdystate)
+            badgeobj.transform.GetChild(2).GetComponent<TMP_Text>().text = "Ready";
+        memberTab_cli.Add(connid, badgeobj);
         badgeobj.transform.SetParent(roomLobbyUI.transform);
     }
     
     /// <summary>
-    ///         ENABLE LEADER INTERFACE FOR THIS CONNECTION
+    ///         SET READY FOR PLAYERS IN THE ROOM
     /// </summary>
-    public void SetLeaderUI_Cli()
+    public void ChangeReadyUI_Cli(int playerconnid, string rdyornot)
     {
-        readyButt.SetActive(false);
-        startButt.SetActive(true);
-        //startButt.GetComponent<Button>().interactable = false;
+        if (memberTab_cli.ContainsKey(playerconnid))
+        {
+            memberTab_cli[playerconnid].transform.GetChild(2).GetComponent<TMP_Text>().text = rdyornot;
+        }
     }
     /// <summary>
     ///     Remove Room Lobby UI on leaving or disconnect
@@ -211,7 +267,7 @@ public class GameMan : MonoBehaviour
             Destroy(tgo);
         }
         roomLobbyUI.transform.GetChild(0).gameObject.GetComponent<TMP_Text>().text = $"";
-        //GameObject.Find("RoomTitle").GetComponent<TMP_Text>().text = "";
+
     }
     /// <summary>
     /// REMOVE THE IDEN FROM THE LOCAL LIST
@@ -251,6 +307,7 @@ public class GameMan : MonoBehaviour
         public NetworkConnection leader;
         public List<NetworkConnection> members = new List<NetworkConnection>();
         public Dictionary<int, string> nameslist = new Dictionary<int, string>();
+        //only != 0 , if members click ready button, else it will always = 0
         public Dictionary<int, bool> readyflags = new Dictionary<int, bool>();
         public Room() { }
     }

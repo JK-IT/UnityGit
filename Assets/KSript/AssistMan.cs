@@ -108,6 +108,7 @@ public class AssistMan : MonoBehaviour
             // sending created room id to client
             Msg_RoomInGeneral sendtocli = new Msg_RoomInGeneral() {roomids = id, comcode = ComCode.CreateRoom};
             cliconn.Send(sendtocli);
+            cliconn.Send(new Msg_Lobby{comcode = ComCode.SetLeader, ureleader = true});
         } 
         else if (inmsg.comcode == ComCode.LeaveRoom)
         {
@@ -129,12 +130,12 @@ public class AssistMan : MonoBehaviour
     {
         if (sermsg.comcode == ComCode.CreateRoom)
         {
-            GameMan.ins.SetupRoom_Cli(sermsg.roomids);
+            GameMan.ins.SetupRoom_Cli(sermsg.roomids, true);
         }
     }
     
 
-    public void Msgreq_JoinRoom(NetworkConnection cliconn, Msg_JoinRoom msg)
+    public void MsgtoSer_JoinRoom(NetworkConnection cliconn, Msg_JoinRoom msg)
     {
         H.klog($"Got req to join from {cliconn.connectionId} , with name {msg.mename}");
         if (GameMan.ins.roomTab_ser.ContainsKey(msg.idtojoin))
@@ -142,11 +143,12 @@ public class AssistMan : MonoBehaviour
             GameMan.Room ro = GameMan.ins.roomTab_ser[msg.idtojoin];
             List<int> memid = new List<int>();
             List<string> memname = new List<string>();
+            List<bool> memstate = new List<bool>();
             //addin LEADER to the list
-            memid.Add(ro.leader.connectionId);
-            memname.Add(ro.nameslist[ro.leader.connectionId]);
+            //memid.Add(ro.leader.connectionId);
+            //memname.Add(ro.nameslist[ro.leader.connectionId]);
             
-            H.klog($"Memcount = {ro.members.Count}");
+            //H.klog($"Memcount = {ro.members.Count}");
             if (ro.members.Count != 0)
             {   
                 for (int i = 0; i < ro.members.Count; i++)
@@ -154,39 +156,50 @@ public class AssistMan : MonoBehaviour
                     //add conn id to member id list to send to cliconn
                     memid.Add(ro.members[i].connectionId);
                     memname.Add(ro.nameslist[ro.members[i].connectionId]);
-                    
+                
                     //send a msg to each member of room, new one join
                     ro.members[i].Send(new Msg_Lobby{playerconnid = cliconn.connectionId, playername = msg.mename, comcode = ComCode.JoinRoom});
+                    
+                // adding ready state to right client conn id
+                    if(ro.readyflags.ContainsKey(ro.members[i].connectionId))
+                        memstate.Add(ro.readyflags[ro.members[i].connectionId]);
+                    else
+                        memstate.Add(false);
                 }
             }
             //send message to leader to add new mem
             ro.leader.Send(new Msg_Lobby{playerconnid = cliconn.connectionId, playername = msg.mename, comcode = ComCode.JoinRoom});
-            
-            H.klog($"Memid count = {memid.Count}");
-            Msg_JoinRoom mess = new Msg_JoinRoom {idtojoin = msg.idtojoin, members = memid, roommemnames = memname,memcount  = memid.Count ,error = false};
+            //reset start ui button
+            ro.leader.Send(new Msg_Lobby{comcode = ComCode.AllReady, enaRoomStart = false});
+            //H.klog($"Memid count = {memid.Count}");
+            Msg_JoinRoom mess = new Msg_JoinRoom {idtojoin = msg.idtojoin, members = memid, roommemnames = memname,memcount  = memid.Count, memstate = memstate,leaderid = ro.leader.connectionId, leadername = ro.nameslist[ro.leader.connectionId],error = false};
             cliconn.Send(mess);
             
-            // adding cliconn as member on server
+            // adding cliconn as room member on server
             GameMan.ins.AddRoomPlayer_Ser(msg.idtojoin, cliconn, msg.mename);
+            //adding player to player table
             GameMan.ins.playerTab_ser.Add(cliconn.connectionId, msg.idtojoin);
+            
         }
     }
 
-    public void Msgres_JoinRoom(Msg_JoinRoom sermsg)
+    public void MsgtoCli_JoinRoom(Msg_JoinRoom sermsg)
     {
         // open game room and add itself
         GameMan.ins.SetupRoom_Cli(sermsg.idtojoin);
+        // adding leader badge to the room
+        GameMan.ins.AddRoomPlayerUI_Cli(sermsg.leaderid, sermsg.leadername, true);
         // add extra lobby player
         if (sermsg.memcount != 0)
         {
             for (int i = 0; i < sermsg.memcount; i++)
             {
-                GameMan.ins.AddRoomPlayerUI_Cli(sermsg.members[i], sermsg.roommemnames[i]);
+                GameMan.ins.AddRoomPlayerUI_Cli(sermsg.members[i], sermsg.roommemnames[i], false ,sermsg.memstate[i]);
             }
         }
     }
     
-    public void Msgreq_Lobby(NetworkConnection cliconn, Msg_Lobby climsg)
+    public void MsgtoSer_Lobby(NetworkConnection cliconn, Msg_Lobby climsg)
     {
         if (climsg.comcode == ComCode.ReadyFlag)
         {
@@ -197,23 +210,49 @@ public class AssistMan : MonoBehaviour
                     ro.readyflags[cliconn.connectionId] = climsg.rdyFlag;
                 else
                     ro.readyflags.Add(cliconn.connectionId, climsg.rdyFlag);
+                // loop over member in room and update that player's state
+                Msg_Lobby messtocli = new Msg_Lobby {playerconnid = cliconn.connectionId, comcode = ComCode.ReadyFlag};
+                messtocli.rdyornot = climsg.rdyFlag ? "Ready" : "Not Ready";
 
-                if (ro.readyflags.Count == 4)
+                if (ro.leader != cliconn)
+                    ro.leader.Send(messtocli);
+
+                for (int i = 0; i < ro.members.Count; i++)
                 {
-                    //todo: check bool of all flag, then send msg to enable start button on leader machine
+                    ro.members[i].Send(messtocli);
                 }
+                // in case if leader id exist in ready list, remove it
+                if (ro.readyflags.ContainsKey(ro.leader.connectionId))
+                    ro.readyflags.Remove(ro.leader.connectionId);
+                // enable start button if all ready
+                CheckRoomReadyFlags(ro);
             }
-            
         }
     }
 
-    public void Msgres_Lobby(Msg_Lobby sermsg)
+    public void MsgtoCli_Lobby(Msg_Lobby sermsg)
     {
-        if(sermsg.comcode == ComCode.JoinRoom)
+        if (sermsg.comcode == ComCode.JoinRoom)
             GameMan.ins.AddRoomPlayerUI_Cli(sermsg.playerconnid, sermsg.playername);
-        else if(sermsg.comcode == ComCode.LeaveRoom)
+        else if (sermsg.comcode == ComCode.LeaveRoom)
         {
             GameMan.ins.RemovePlayer_Cli(sermsg.playerconnid);
+        } 
+        else if (sermsg.comcode == ComCode.ReadyFlag)
+        {
+            GameMan.ins.ChangeReadyUI_Cli(sermsg.playerconnid, sermsg.rdyornot);
+        }
+        else if (sermsg.comcode == ComCode.AllReady)
+        {
+            GameMan.ins.EnableStartButton(sermsg.enaRoomStart);
+        }
+        else if (sermsg.comcode == ComCode.SetLeader)
+        {
+            GameMan.ins.SetLeaderUI(sermsg.ureleader);
+        } 
+        else if (sermsg.comcode == ComCode.ChangeLeader)
+        {
+            GameMan.ins.ChangLeader_Cli(sermsg.playerconnid);
         }
     }
     
@@ -221,6 +260,12 @@ public class AssistMan : MonoBehaviour
 
     #region ============= HELPER FUNCTIONS
     // SERVER CALLS THIS TO REMOVE AND PROMOTE NEW LEADER OR REMOVE ROOM FROM RECORD
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="roomid"></param>
+    /// <param name="cliconn"></param>
+    /// <param name="mess"> Contains the id of conn that leave</param>
     private void LeaveAndPromote(string roomid,NetworkConnection cliconn  ,Msg_Lobby mess)
     {
         if (GameMan.ins.roomTab_ser.ContainsKey(roomid))
@@ -245,25 +290,63 @@ public class AssistMan : MonoBehaviour
                     // promote the next one to be leader, need to be in different order
                     ro.nameslist.Remove(ro.leader.connectionId); // remove name of conn as leader
                     ro.leader = ro.members[0]; // promote
-                    ro.leader.Send(mess);
+                    ro.leader.Send(mess); 
+                    // send msg to enable leader ui
+                    ro.leader.Send(new Msg_Lobby{comcode = ComCode.SetLeader, ureleader = true});
                     ro.members.Remove(ro.leader);
+                    // remove id of new leader from ready flags list
+                    if (ro.readyflags.ContainsKey(ro.leader.connectionId))
+                    {
+                        ro.readyflags.Remove(ro.leader.connectionId);
+                    }
+                    
                 }
 
                 // loop over members and send them msg to remove from their local lobby
                 for (int i = 0; i < ro.members.Count; i++)
                 {
                     ro.members[i].Send(mess);
+                    // send another message to update all with the new leader
+                    ro.members[i].Send(new Msg_Lobby{comcode = ComCode.ChangeLeader, playerconnid = ro.leader.connectionId});
                 }
-
                 // remove flag from flag list
                 if (ro.readyflags.ContainsKey(cliconn.connectionId))
                 {
                     ro.readyflags.Remove(cliconn.connectionId);
+                    H.klog($"Remove Flag of players that left the room, remaining {ro.readyflags.Count}");
                 }
+                // check ro ready flags, to enable start button for new leader
+                CheckRoomReadyFlags(ro);
             }
         }
     }
-    
+
+    private void CheckRoomReadyFlags(GameMan.Room ro)
+    {
+        if ((ro.members.Count) == ro.readyflags.Count)
+        {
+            // check bool of all flags
+            // set this to true, cuz if there no room member then leader only should have this button on to start by itself
+            bool roomrdy = true;
+            for (int i = 0; i < ro.members.Count; i++)
+            {
+                //if no members click on ready butt => readyflags list is empty, this will complain, should have a guard here
+                if (ro.readyflags.Count != 0)
+                {
+                    if (ro.readyflags.ContainsKey(ro.members[i].connectionId))
+                        roomrdy &= ro.readyflags[ro.members[i].connectionId];
+                }
+                else
+                    roomrdy = false; //there are members but no one click ready so default should make it false
+
+            }
+            H.klog($"Value of room ready Flag {roomrdy.ToString()}");
+            if (roomrdy)
+                ro.leader.Send(new Msg_Lobby{comcode = ComCode.AllReady, enaRoomStart = true});
+            else
+                ro.leader.Send(new Msg_Lobby{comcode = ComCode.AllReady, enaRoomStart = false});
+        }
+    }
 
     #endregion
     

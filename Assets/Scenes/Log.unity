@@ -731,7 +731,7 @@ MonoBehaviour:
   m_UiScaleMode: 1
   m_ReferencePixelsPerUnit: 100
   m_ScaleFactor: 1
-  m_ReferenceResolution: {x: 1920, y: 1080}
+  m_ReferenceResolution: {x: 960, y: 540}
   m_ScreenMatchMode: 0
   m_MatchWidthOrHeight: 0.5
   m_PhysicalUnit: 3
@@ -1149,7 +1149,7 @@ MonoBehaviour:
   ninputpanel: {fileID: 1451608496}
   ninputfield: {fileID: 1967198618}
   popuploading: {fileID: 1686549060}
-  pdat: {fileID: 11400000, guid: b34745876e2695d44b40cd413f2a2d2f, type: 2}
+  pdatscript: {fileID: 11400000, guid: b34745876e2695d44b40cd413f2a2d2f, type: 2}
 --- !u!1 &1445027904
 GameObject:
   m_ObjectHideFlags: 0
