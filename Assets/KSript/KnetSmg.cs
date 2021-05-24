@@ -17,7 +17,10 @@ public enum ComCode
     ReadyFlag,
     AllReady,
     SetLeader,
-    ChangeLeader
+    ChangeLeader,
+    StartGame,
+    SceneLoading,
+    SpawnMe
 }
 
 public struct Msg_RoomInGeneral : NetworkMessage
@@ -57,4 +60,29 @@ public struct Msg_Lobby : NetworkMessage
     
     //info send from client
     public bool rdyFlag;
+}
+
+public struct Msg_StartGame : NetworkMessage
+{
+    //general info
+    public string roomid;
+    public ComCode comcode;
+
+    //info to cli
+    public string sceneName;
+    public bool rdyNspawn;
+    public bool doneloading;
+    public bool load_scene_command;
+}
+
+
+public struct Msg_SpawnMe : NetworkMessage
+{
+    //general
+    public ComCode comCode;
+    public string roomid;
+    
+    // info to server : character customization
+    public Vector3 position;
+    // info to client:...
 }

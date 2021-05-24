@@ -21,8 +21,9 @@ public class H
         Debug.Log($"<color=aliceblue> ========= <b> {name} </b> ===>  {ins} =========  </color>  {DateTime.Now:T} : {DateTime.Now.Millisecond}");
     }
 
-    public static void klog2(string ins, string name, string col = "teal")
+    public static void klog2(string ins, string name, string col = "#008080")
     {
+        
         Debug.Log($"<color={col}> ###### <b> {name} </b> ===>  {ins} ###########  </color>  {DateTime.Now:T} : {DateTime.Now.Millisecond}");
     }
 
@@ -44,12 +45,12 @@ public class H
         return ids;
     }
 
-    public static string ToGuid(string instr)
+    public static Guid ToGuid(string instr)
     {
         MD5 md5 = MD5.Create();
         byte[] feed = md5.ComputeHash(Encoding.Default.GetBytes(instr));
         Guid guid = new Guid(feed);
-        return guid.ToString();
+        return guid;
     }
 
     public static string GenNames()

@@ -3,6 +3,7 @@ using UnityEngine.SceneManagement;
 using Mirror;
 using System;
 using System.Collections.Generic;
+using UnityEditor;
 
 /*
 	Documentation: https://mirror-networking.com/docs/Components/NetworkManager.html
@@ -12,10 +13,11 @@ using System.Collections.Generic;
 public class KnetMan : NetworkManager
 {
     public static Dictionary<NetworkConnection, GameObject> connbook = new Dictionary<NetworkConnection, GameObject>();
-    public static KnetMan knetIns;
     
     [Tooltip("Room Player Prefab")] [Header("Room Player Prefab")] [SerializeField]
     public GameObject roomPlayerPrefab;
+    [Tooltip("Player Spawning Location")] [Header("Spawn Location")] [SerializeField]
+    public List<GameObject> SpawnLocation = new List<GameObject>();
     //------------------------
     #region Unity Callbacks
 
@@ -40,6 +42,7 @@ public class KnetMan : NetworkManager
     /// </summary>
     public override void Start()
     {
+        H.klog($"Knet Manager Starting");
         base.Start();
     }
 
@@ -146,6 +149,7 @@ public class KnetMan : NetworkManager
         NetworkServer.SetClientNotReady(conn);
         Msg_Welcome msgtocli = new Msg_Welcome {wlcomemsg = $"Hey , my friends {conn.connectionId}", cliconnid = conn.connectionId};
         conn.Send(msgtocli);
+        
     }
 
     /// <summary>
@@ -158,6 +162,7 @@ public class KnetMan : NetworkManager
         //H.klog($"Client {conn} says IT IS READY!!!! AFTER SCENE FINISH LOADING");
         H.klog($"Client {conn} says IT IS READY!!!! yayy");
         base.OnServerReady(conn);
+        //NetworkServer.SpawnObjects();
     }
 
     /// <summary>
@@ -176,9 +181,7 @@ public class KnetMan : NetworkManager
         // instantiating a "Player" prefab gives it the name "Player(clone)"
         // => appending the connectionId is WAY more useful for debugging!
         player.name = $"{playerPrefab.name} [connId={conn.connectionId}]";
-
         connbook[conn] = player;
-        
         NetworkServer.AddPlayerForConnection(conn, player);
     }
 
@@ -275,11 +278,16 @@ public class KnetMan : NetworkManager
     /// </summary>
     public override void OnStartServer()
     {
-        knetIns = this; //set ins of knet to this on server
         NetworkServer.RegisterHandler<Msg_Welcome>(AssistMan._ins.Msgreq_Welcome);
-        NetworkServer.RegisterHandler<Msg_RoomInGeneral>(AssistMan._ins.Msgreq_RoomInGeneral);
+        NetworkServer.RegisterHandler<Msg_RoomInGeneral>(AssistMan._ins.MsgtoSer_RoomInGeneral);
         NetworkServer.RegisterHandler<Msg_JoinRoom>(AssistMan._ins.MsgtoSer_JoinRoom);
         NetworkServer.RegisterHandler<Msg_Lobby>(AssistMan._ins.MsgtoSer_Lobby);
+        NetworkServer.RegisterHandler<Msg_StartGame>(AssistMan._ins.MsgtoSer_StartGame);
+        NetworkServer.RegisterHandler<Msg_SpawnMe>(AssistMan._ins.MsgtoSer_SpawnMe);
+                    
+        //loading scene on ser it self - if server only mode
+        if(NetworkManager.singleton.mode == NetworkManagerMode.ServerOnly)
+            SceneManager.LoadScene("Scene_001");
     }
     
     /// <summary>
@@ -293,9 +301,10 @@ public class KnetMan : NetworkManager
             NetworkClient.RegisterPrefab(roomPlayerPrefab);
         }
         NetworkClient.RegisterHandler<Msg_Welcome>(AssistMan._ins.Msgres_Welcome);
-        NetworkClient.RegisterHandler<Msg_RoomInGeneral>(AssistMan._ins.Msgres_RoomInGenral);
+        NetworkClient.RegisterHandler<Msg_RoomInGeneral>(AssistMan._ins.MsgtoCli_RoomInGenral);
         NetworkClient.RegisterHandler<Msg_JoinRoom>(AssistMan._ins.MsgtoCli_JoinRoom);
         NetworkClient.RegisterHandler<Msg_Lobby>(AssistMan._ins.MsgtoCli_Lobby);
+        NetworkClient.RegisterHandler<Msg_StartGame>(AssistMan._ins.MsgtoCli_StartGame);
     }
     
     /// <summary>

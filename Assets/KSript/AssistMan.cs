@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Mirror;
+using UnityEngine.SceneManagement;
 
 public class AssistMan : MonoBehaviour
 {
@@ -17,18 +18,33 @@ public class AssistMan : MonoBehaviour
 
     public static AssistMan _ins;
     private KnetMan _knet;
+    
+    public AsyncOperation sceneloading;
+    private static int spawn_loc_used = 0;
+    
     // Start is called before the first frame update
     void Start()
     {
+        H.klog($"Assist Man Starting");
         _ins = this;
         _knet = this.gameObject.GetComponent<KnetMan>();
     }
-
+    
     // Update is called once per frame
     void Update()
     {
         
     }
+
+    private void LateUpdate()
+    {
+        if (sceneloading != null &&  sceneloading.isDone)
+        {
+            conntoserver.Send(new Msg_StartGame{doneloading = true, comcode = ComCode.SceneLoading, roomid = GameMan.ins.currentRoomid_cli});
+            sceneloading = null;
+        }
+    }
+
     #endregion
     
     #region ======== UI related =========
@@ -61,7 +77,22 @@ public class AssistMan : MonoBehaviour
     {
         conntoserver.Send(new Msg_Lobby{comcode = ComCode.ReadyFlag, roomid = roomid, rdyFlag = flg});
     }
+    
+    public void Req_StartGame(string inid)
+    {
+        // ask client to load the scene,
+        //client will report if the scene done loading
+        conntoserver.Send(new Msg_StartGame{roomid = inid, comcode = ComCode.StartGame});
+    }
 
+    private void ReadySpawn()
+    {
+        // set client ready
+        if (!NetworkClient.ready)
+            NetworkClient.Ready();
+        // send to server to spawn player obj
+        conntoserver.Send(new Msg_SpawnMe{comCode = ComCode.SpawnMe, roomid = GameMan.ins.currentRoomid_cli});
+    }
     /// <summary>
     ///     SERVER CALLS THIS
     ///     Function will be called in network manager, when a player disconnect
@@ -95,7 +126,7 @@ public class AssistMan : MonoBehaviour
         H.klog($"Client got a msgSer from Server => {msg.wlcomemsg}");
         AssistMan._ins.cliConnId = msg.cliconnid;
     }
-    public void Msgreq_RoomInGeneral(NetworkConnection cliconn, Msg_RoomInGeneral inmsg)
+    public void MsgtoSer_RoomInGeneral(NetworkConnection cliconn, Msg_RoomInGeneral inmsg)
     {
         if (inmsg.comcode == ComCode.CreateRoom)
         {
@@ -126,7 +157,7 @@ public class AssistMan : MonoBehaviour
         }
     }
 
-    public void Msgres_RoomInGenral(Msg_RoomInGeneral sermsg)
+    public void MsgtoCli_RoomInGenral(Msg_RoomInGeneral sermsg)
     {
         if (sermsg.comcode == ComCode.CreateRoom)
         {
@@ -255,6 +286,89 @@ public class AssistMan : MonoBehaviour
             GameMan.ins.ChangLeader_Cli(sermsg.playerconnid);
         }
     }
+
+    public void MsgtoSer_StartGame(NetworkConnection cliconn, Msg_StartGame climsg)
+    {
+        
+        if (climsg.comcode == ComCode.StartGame)
+        { 
+            H.klog($"Server got msg to start game at room {climsg.roomid}");
+            if (GameMan.ins.roomTab_ser.ContainsKey(climsg.roomid))
+            {
+                GameMan.Room ro = GameMan.ins.roomTab_ser[climsg.roomid];
+                // sending loading message to leader and all other member
+                Msg_StartGame mess = new Msg_StartGame {sceneName = "Scene_001", comcode = ComCode.StartGame, load_scene_command = true};
+                ro.leader.Send(mess);
+                for (int i = 0; i < ro.members.Count; i++)
+                {
+                    ro.members[i].Send(mess);
+                }
+            }
+        } 
+        else if (climsg.comcode == ComCode.SceneLoading)
+        {
+            H.klog($"This client {cliconn.connectionId} finishes loading scene");
+            if (GameMan.ins.roomTab_ser.ContainsKey(climsg.roomid))
+            {
+                GameMan.Room ro = GameMan.ins.roomTab_ser[climsg.roomid];
+                if (ro.members.Count == 0)
+                {
+                    ro.leader.Send(new Msg_StartGame{comcode = ComCode.StartGame, rdyNspawn = true});
+                }
+                else
+                {
+                    ro.allDoneLoading += 1;
+                    if (ro.allDoneLoading == (ro.members.Count + 1) )
+                    {
+                        ro.allDoneLoading = 0;
+                        Msg_StartGame msg = new Msg_StartGame {comcode = ComCode.StartGame, rdyNspawn = true, load_scene_command = false};
+                        ro.leader.Send(msg);
+                        for (int i= 0; i < ro.members.Count; i++)
+                        {
+                            ro.members[i].Send(msg);
+                        }
+                    }
+                }
+            }       
+        }
+        
+    }
+
+    public void MsgtoCli_StartGame(Msg_StartGame sermsg)
+    {
+        if (sermsg.comcode == ComCode.StartGame)
+        {
+            if(sermsg.load_scene_command)
+                sceneloading = SceneManager.LoadSceneAsync(sermsg.sceneName);
+            else
+            {
+                if(sermsg.rdyNspawn)
+                    ReadySpawn();
+            }
+        }
+    }
+
+    public void MsgtoSer_SpawnMe(NetworkConnection conn, Msg_SpawnMe climsg)
+    {
+        H.klog2($"Server got Msg to Spawn player prefab", this.name, "#2e8b57");
+        
+        // spawning the client player object
+        if (_knet.playerPrefab != null && _knet.playerPrefab.GetComponent<NetworkIdentity>() != null)
+        {
+            GameObject go = Instantiate(_knet.playerPrefab);
+            go.transform.position = _knet.SpawnLocation[spawn_loc_used++].transform.position;
+            
+            // assigning guid to game object
+            Guid gudi = H.ToGuid(climsg.roomid);
+            go.GetComponent<PlayerMatchId>().SetGuid(gudi);
+            H.klog($"This is guid for this room id {climsg.roomid} - {gudi.ToString()}");
+            
+            //spawn_loc_used++;
+            spawn_loc_used = (spawn_loc_used == _knet.SpawnLocation.Count) ? 0 : spawn_loc_used;
+            go.name = $"{_knet.playerPrefab.name} _ {conn.connectionId}";
+            NetworkServer.AddPlayerForConnection(conn, go);
+        }
+    }
     
     #endregion
 
@@ -349,5 +463,6 @@ public class AssistMan : MonoBehaviour
     }
 
     #endregion
-    
+
+
 }

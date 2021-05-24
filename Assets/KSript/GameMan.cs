@@ -30,7 +30,7 @@ public class GameMan : MonoBehaviour
 
     // ---- CLIENT SIDE
     [Header("Room Members")]
-    [SerializeField] private string currentRoomid_cli ;
+    [SerializeField] public string currentRoomid_cli ;
     //[SerializeField] private List<NetworkIdentity> roomMember_cli = new List<NetworkIdentity>();
     public Dictionary<int, GameObject> memberTab_cli = new Dictionary<int, GameObject>();
     
@@ -45,16 +45,19 @@ public class GameMan : MonoBehaviour
     public void UIServer()
     {
         KnetMan.singleton.StartServer();
+        SetUIonConnect();
     }
 
     public void UIClient()
     {
         KnetMan.singleton.StartClient();
+        SetUIonConnect();
     }
 
     public void UIHost()
     {
         KnetMan.singleton.StartHost();
+        SetUIonConnect();
     }
     public void UICreateRoom()
     {
@@ -92,7 +95,8 @@ public class GameMan : MonoBehaviour
 
     public void UIStartGame()
     {
-        //prep.repui.RepStartGame(currentRoomid_cli);
+        H.klog($"Server will start the game");
+        AssistMan._ins.Req_StartGame(currentRoomid_cli);
     }
 
     public void UICancelReady()
@@ -120,7 +124,10 @@ public class GameMan : MonoBehaviour
         if (enordis)
         {
             startButt.SetActive(true);
-            startButt.GetComponent<Button>().interactable = false;
+            if (memberTab_cli.Count == 1)
+                startButt.GetComponent<Button>().interactable = true;
+            else
+                startButt.GetComponent<Button>().interactable = false;
             readyButt.SetActive(false);
             // set up difference text for player badge
             memberTab_cli[-1].transform.GetChild(2).GetComponent<TMP_Text>().text = "Leader";
@@ -155,10 +162,13 @@ public class GameMan : MonoBehaviour
     ///     Enable the game control panel
     /// </summary>
     /// <param name="inb"></param>
-    public void SetUIonConnect(bool inb)
+    public void SetUIonConnect(bool inb = false)
     {
-        uigroups[0].SetActive(false);
-        uigroups[1].SetActive(true);
+        if (KnetMan.singleton.isNetworkActive)
+        {
+            uigroups[0].SetActive(false);
+            uigroups[1].SetActive(true);
+        }
     }
     
     // this will be called on instance of gameman on server
@@ -309,6 +319,7 @@ public class GameMan : MonoBehaviour
         public Dictionary<int, string> nameslist = new Dictionary<int, string>();
         //only != 0 , if members click ready button, else it will always = 0
         public Dictionary<int, bool> readyflags = new Dictionary<int, bool>();
+        public int allDoneLoading = 0;
         public Room() { }
     }
     
@@ -319,9 +330,10 @@ public class GameMan : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+        H.klog($"Game Manager Starting");
         ins = this;
+        DontDestroyOnLoad(ins);
         InitUI();
-        SetupEventSub();
     }
 
     // Update is called once per frame
@@ -334,11 +346,6 @@ public class GameMan : MonoBehaviour
     {
         uigroups[0].SetActive(true);
         uigroups[1].SetActive(false);
-    }
-
-    private void SetupEventSub()
-    {
-        AssistMan._ins.onCliConnect += SetUIonConnect;
     }
     #endregion
 
