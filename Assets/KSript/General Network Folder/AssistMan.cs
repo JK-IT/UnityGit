@@ -52,8 +52,8 @@ public class AssistMan : MonoBehaviour
     public void Req_CreateRoom()
     {
         //H.klog2($"I {cliConnId} request server {conntoserver} to create room ", this.name);
-        //H.klog($"Name that ask to CCREATE from UI : {PlayerMan._ins.playerdat.GetName()}");
-        conntoserver.Send(new Msg_RoomInGeneral{urname =  PlayerMan._ins.playerdat.GetName(), comcode = ComCode.CreateRoom});
+        //H.klog($"Name that ask to CCREATE from UI : {DataMan._ins.playerdat.GetName()}");
+        conntoserver.Send(new Msg_RoomInGeneral{urname =  DataMan._ins.playerdat.GetName(), comcode = ComCode.CreateRoom});
     }
     /// <summary>
     ///     CLIENT CALLS THIS
@@ -61,8 +61,8 @@ public class AssistMan : MonoBehaviour
     /// <param name="idtojoin"></param>
     public void Req_JoinRoom(string idtojoin)
     {
-        //H.klog($"Name When requesting to join from UI : {PlayerMan._ins.playerdat.GetName()}");
-        conntoserver.Send(new Msg_JoinRoom{idtojoin = idtojoin, mename =  PlayerMan._ins.playerdat.GetName()});
+        //H.klog($"Name When requesting to join from UI : {DataMan._ins.playerdat.GetName()}");
+        conntoserver.Send(new Msg_JoinRoom{idtojoin = idtojoin, mename =  DataMan._ins.playerdat.GetName()});
     }
     /// <summary>
     ///     CLIENT CALLS THIS
@@ -303,6 +303,7 @@ public class AssistMan : MonoBehaviour
                 {
                     ro.members[i].Send(mess);
                 }
+                GameMan.ins.SetupMatchIns(climsg.roomid);
             }
         } 
         else if (climsg.comcode == ComCode.SceneLoading)
@@ -314,6 +315,7 @@ public class AssistMan : MonoBehaviour
                 if (ro.members.Count == 0)
                 {
                     ro.leader.Send(new Msg_StartGame{comcode = ComCode.StartGame, rdyNspawn = true});
+                    
                 }
                 else
                 {
@@ -348,25 +350,62 @@ public class AssistMan : MonoBehaviour
         }
     }
 
-    public void MsgtoSer_SpawnMe(NetworkConnection conn, Msg_SpawnMe climsg)
+    public void MsgtoSer_SpawnMe(NetworkConnection cliconn, Msg_SpawnMe climsg)
     {
-        H.klog2($"Server got Msg to Spawn player prefab", this.name, "#2e8b57");
-        
-        // spawning the client player object
-        if (_knet.playerPrefab != null && _knet.playerPrefab.GetComponent<NetworkIdentity>() != null)
+        if (climsg.comCode == ComCode.SpawnMe)
         {
-            GameObject go = Instantiate(_knet.playerPrefab);
-            go.transform.position = _knet.SpawnLocation[spawn_loc_used++].transform.position;
+            H.klog2($"Server got Msg to Spawn NetClient prefab for {cliconn.connectionId}", this.name, "#2e8b57");
             
-            // assigning guid to game object
-            Guid gudi = H.ToGuid(climsg.roomid);
-            go.GetComponent<PlayerMatchId>().SetGuid(gudi);
-            H.klog($"This is guid for this room id {climsg.roomid} - {gudi.ToString()}");
-            
-            //spawn_loc_used++;
-            spawn_loc_used = (spawn_loc_used == _knet.SpawnLocation.Count) ? 0 : spawn_loc_used;
-            go.name = $"{_knet.playerPrefab.name} _ {conn.connectionId}";
-            NetworkServer.AddPlayerForConnection(conn, go);
+            // spawning the client player object
+            if (_knet.playerPrefab != null && _knet.playerPrefab.GetComponent<NetworkIdentity>() != null)
+            {
+                GameObject go;
+                //spawn this as child of MATCH INSTANCE GAME OBJECT
+                if (GameMan.ins.MatchIns_ser.ContainsKey(climsg.roomid))
+                    go = Instantiate(_knet.playerPrefab, GameMan.ins.MatchIns_ser[climsg.roomid].transform);
+                else
+                {
+                    H.klog2($"error spawning this game object with parent", this.name, "#ff0000");
+                    go = Instantiate(_knet.playerPrefab);
+                }
+                
+                // assigning guid to game object
+                Guid gudi = H.ToGuid(climsg.roomid);
+                go.GetComponent<PlayerMatchId>().SetGuid(gudi);
+                H.klog($"This is guid for this room id {climsg.roomid} - {gudi.ToString()}");
+                go.name = $"{_knet.playerPrefab.name} _ {cliconn.connectionId}";
+                
+                // changing layer the same as parent
+                if (go.transform.parent != null)
+                {
+                    go.layer = go.transform.parent.gameObject.layer;
+                }
+                // add to KnetMan ConnBook 
+                if (KnetMan.connbook.ContainsKey(cliconn))
+                {
+                    KnetMan.connbook[cliconn] = go;
+                }
+                else
+                {
+                    H.klog($"cannot find connection in ConnBook of Knetman => adding new entry");
+                    KnetMan.connbook.Add(cliconn, go);
+                }
+                NetworkServer.AddPlayerForConnection(cliconn, go);
+            }
+        }
+        else if (climsg.comCode == ComCode.SpawnNCustom)
+        {
+            H.klog2($"Server got Msg to Spawn Playable obj for {cliconn.connectionId}", this.name, "#2e8b57");
+            // using knetMan connbook to look up for game object
+            if (KnetMan.connbook.ContainsKey(cliconn))
+            {
+                string guid = KnetMan.connbook[cliconn].GetComponent<PlayerMatchId>().GetGuid();
+                SpawnPlayableObj(cliconn, guid, climsg);
+            }
+            else
+            {
+                H.klog2($"Error: Client Connection not Register", this.name, "#ff1f1f");
+            }
         }
     }
     
@@ -464,5 +503,35 @@ public class AssistMan : MonoBehaviour
 
     #endregion
 
+    #region ================   SERVER CALLS FOR NETCLIENT on Server
+    
+    //---------- > Spawning the playable game object for player
+    public void SpawnPlayableObj(NetworkConnection cli, string guid, Msg_SpawnMe inmsg)
+    {
+        H.klog($" Spawning PLAYABLE OBJECT  for conn {cli.connectionId}");
+        GameObject go = Instantiate( _knet.spawnPrefabs.Find(x => x.name.Contains("Ppo")), KnetMan.connbook[cli].transform.parent);
+        
+        go.name = $"pp0 {cli.connectionId}";
+        go.GetComponent<PlayerMatchId>().SetGuid(Guid.Parse(guid));
+        go.GetComponent<PlayerRegulator>().colorhex = inmsg.colorhex;
+        go.transform.position = _knet.SpawnLocation[spawn_loc_used++].transform.position;
+        
+        // changing layer the same as parent
+        if (go.transform.parent != null)
+        {
+            go.layer = go.transform.parent.gameObject.layer;
+        }
+        
+        //spawn_loc_used++;
+        spawn_loc_used = (spawn_loc_used == _knet.SpawnLocation.Count) ? 0 : spawn_loc_used;
+        NetworkServer.Spawn(go, cli);
+    }
 
+    #endregion
+
+    #region =========================== RCP CALLLS
+    
+    
+
+    #endregion
 }

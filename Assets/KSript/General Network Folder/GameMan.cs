@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using Mirror;
 using TMPro;
 using UnityEngine;
@@ -9,6 +10,9 @@ using UnityEngine.UI;
 
 public class GameMan : MonoBehaviour
 {
+
+    #region ================== VARIABLE
+
     public static GameMan ins = null;
     private static PlayerRep prep = null;
 
@@ -27,6 +31,8 @@ public class GameMan : MonoBehaviour
     [Header("Room Lobby")]
     [SerializeField] private GameObject roomLobbyUI;
     [SerializeField] private GameObject playerBadge;
+    
+    [Header("Game Room Prefab")][SerializeField] private GameObject GameRoomPrefab;
 
     // ---- CLIENT SIDE
     [Header("Room Members")]
@@ -40,12 +46,18 @@ public class GameMan : MonoBehaviour
             //key: conn id, obj: room id
     public Dictionary<int, string> playerTab_ser = new Dictionary<int, string>();
 
+    private const int MAXROOMCAPACITY = 5;
+    public SortedList<string, GameObject> MatchIns_ser = new SortedList<string, GameObject>();
+    
+
+    #endregion
+
     #region ============================ UI METHOD
 
     public void UIServer()
     {
         KnetMan.singleton.StartServer();
-        SetUIonConnect();
+        //SetUIonConnect();
     }
 
     public void UIClient()
@@ -105,11 +117,6 @@ public class GameMan : MonoBehaviour
         // -1 as local badge
         memberTab_cli[-1].transform.GetChild(2).GetComponent<TMP_Text>().text = "Not Ready";
     }
-
-    public void UILoadScene()
-    {
-        prep.RepLoadScene();
-    }
     
     #endregion
 
@@ -151,6 +158,7 @@ public class GameMan : MonoBehaviour
         startButt.SetActive(false);
         readyButt.SetActive(true);
     }
+    
     public void ChangLeader_Cli(int leaderid)
     {
         if (memberTab_cli.ContainsKey(leaderid))
@@ -158,6 +166,7 @@ public class GameMan : MonoBehaviour
             memberTab_cli[leaderid].transform.GetChild(2).GetComponent<TMP_Text>().text = "Leader";
         }
     }
+    
     /// <summary>
     ///     Enable the game control panel
     /// </summary>
@@ -213,6 +222,7 @@ public class GameMan : MonoBehaviour
         else
             AddRoomPlayerUI_Cli(); // add self as normal player
     }
+    
     /// <summary>
     ///         SHOW THE ROOM UI DISPLAY
     /// </summary>
@@ -229,6 +239,7 @@ public class GameMan : MonoBehaviour
         //prep.SpawnPlayerBadgeObject();
         //AddRoomPlayerUI_Cli();
     }
+    
 /// <summary>
 ///             ADDING PLAYER BADGE TO ROOM UI
 /// </summary>
@@ -242,7 +253,7 @@ public class GameMan : MonoBehaviour
         }
         else
         {
-            badgeobj.transform.GetChild(1).GetComponent<TMP_Text>().text = PlayerMan._ins.playerdat.GetName();
+            badgeobj.transform.GetChild(1).GetComponent<TMP_Text>().text = DataMan._ins.playerdat.GetName();
         }
 
         if (isleader)
@@ -264,6 +275,7 @@ public class GameMan : MonoBehaviour
             memberTab_cli[playerconnid].transform.GetChild(2).GetComponent<TMP_Text>().text = rdyornot;
         }
     }
+    
     /// <summary>
     ///     Remove Room Lobby UI on leaving or disconnect
     /// </summary>
@@ -279,6 +291,7 @@ public class GameMan : MonoBehaviour
         roomLobbyUI.transform.GetChild(0).gameObject.GetComponent<TMP_Text>().text = $"";
 
     }
+    
     /// <summary>
     /// REMOVE THE IDEN FROM THE LOCAL LIST
     /// REMOVE THE BADGE UI OF THAT IDEN
@@ -294,12 +307,49 @@ public class GameMan : MonoBehaviour
             memberTab_cli.Remove(connid);
         }
     }
-/// <summary>
-/// SETTING REFERENCE OF INSTANCE OF PLAYER REPRESENTATIVE LOCALLY
-/// </summary>
-    public static void SetRep()
+    
+    // -------------------- > > > > Where game starts
+
+    /// <summary>
+    /// create a game object with a layer, so that they will not collide on server,
+    /// eventho they do not see each other, but the gameobject still there
+    /// </summary>
+    /// <param name="matchid"></param>
+    public void SetupMatchIns(string matchid)
     {
-        prep = PlayerRep.RetRepIns();
+        //H.klog2($"is gameroom prefab null {GameRoomPrefab == null}", this.name, "#ff0000");
+        if (GameRoomPrefab != null)
+        {
+            //H.klog2($"Spawing Match instance with tag", this.name, "#ff0000");
+            GameObject go = Instantiate(GameRoomPrefab);
+            int avaiPos= 0;
+
+            if (MatchIns_ser.Count < MAXROOMCAPACITY)
+            {
+                avaiPos = MatchIns_ser.Count;
+                go.layer = avaiPos + 6;
+                go.name = matchid;
+                MatchIns_ser.Add(matchid, go);
+                
+                // set ignore to other layer
+                for (int i = 0; i < 5; i++)
+                {
+                    if(go.layer == (i + 6))
+                        continue;
+                    Physics2D.IgnoreLayerCollision(go.layer, i + 6, true); 
+                }
+                
+                // loop over and spawn scene object, cannot preset with the above game object
+                // cuz it will generate different asset id, which is != registered asset id on client
+                for (int v = 1; v < KnetMan.singleton.spawnPrefabs.Count; v++)
+                {
+                     GameObject sob = Instantiate(KnetMan.singleton.spawnPrefabs[v], go.transform);
+                    sob.layer = go.layer;
+                    sob.GetComponent<PlayerMatchId>().SetGuid(H.ToGuid(matchid));
+                    NetworkServer.Spawn(sob);
+                }
+            }
+        }
     }
     
     #endregion
@@ -326,7 +376,7 @@ public class GameMan : MonoBehaviour
 
     #endregion
 
-    #region ========== Start & Init 
+    #region ========== Start & Init Unity Callback
     // Start is called before the first frame update
     void Start()
     {

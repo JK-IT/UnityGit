@@ -75,7 +75,12 @@ public class RoomKVisibility : SpatialHashingInterestManagement
         if (guid == connguid)
         {
             H.klog2($"Found netid {identity.netId}  have same match id with netid {newObserver.identity.netId}", name, "00e0e0");
-            return base.OnCheckObserver(identity, newObserver);
+            Vector2Int indenpos = PosOnGrid(identity.transform.position);
+            Vector2Int obserpos = PosOnGrid(newObserver.identity.transform.position);
+
+            return (indenpos - obserpos).sqrMagnitude <= 2;
+            
+            //return base.OnCheckObserver(identity, newObserver);
         }
         else
             return false;
@@ -106,7 +111,7 @@ public class RoomKVisibility : SpatialHashingInterestManagement
                             if (conn.identity.GetComponent<PlayerMatchId>().matchGuid ==
                                 identity.GetComponent<PlayerMatchId>().matchGuid)
                             {
-                                //H.klog($"Same MatchID, Conn id to add to new observer-- {conn.connectionId}");
+                                //H.klog($"Same MatchID, Conn id to add to new observer -- {conn.identity.gameObject.name}");
                                 newObservers.Add(conn);
                             }
                         }

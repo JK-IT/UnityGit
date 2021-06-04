@@ -5,9 +5,9 @@ using System.Threading;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class PlayerMan : MonoBehaviour
+public class DataMan : MonoBehaviour
 {
-    public static PlayerMan _ins;
+    public static DataMan _ins;
     
     //TODO: DELETE SERIALIZEFIELD LATER
     [SerializeField] public PlayerDaOb playerdat;
@@ -36,7 +36,7 @@ public class PlayerMan : MonoBehaviour
 
     #region  ========== CHARACTER CUSTOMIZATION
 
-    public void PickColor(GameObject ingo)
+    public void LobbyPickColor(GameObject ingo)
     {
         Color c = ingo.GetComponent<Image>().color;
         H.klog(ColorUtility.ToHtmlStringRGBA(c));
@@ -44,7 +44,10 @@ public class PlayerMan : MonoBehaviour
         H.SavepDat(System.IO.Path.Combine(Application.dataPath, "pdat.dat"), playerdat);
     }
 
-
+    public string GetColor()
+    {
+        return (playerdat.GetColor());
+    }
     #endregion
 
 }

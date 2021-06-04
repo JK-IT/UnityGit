@@ -20,7 +20,8 @@ public enum ComCode
     ChangeLeader,
     StartGame,
     SceneLoading,
-    SpawnMe
+    SpawnMe,
+    SpawnNCustom
 }
 
 public struct Msg_RoomInGeneral : NetworkMessage
@@ -82,7 +83,13 @@ public struct Msg_SpawnMe : NetworkMessage
     public ComCode comCode;
     public string roomid;
     
-    // info to server : character customization
     public Vector3 position;
+    public string colorhex;
+
+
+
+    // info to server : character customization
     // info to client:...
+
 }
+

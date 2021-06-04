@@ -14,8 +14,6 @@ public class KnetMan : NetworkManager
 {
     public static Dictionary<NetworkConnection, GameObject> connbook = new Dictionary<NetworkConnection, GameObject>();
     
-    [Tooltip("Room Player Prefab")] [Header("Room Player Prefab")] [SerializeField]
-    public GameObject roomPlayerPrefab;
     [Tooltip("Player Spawning Location")] [Header("Spawn Location")] [SerializeField]
     public List<GameObject> SpawnLocation = new List<GameObject>();
     //------------------------
@@ -181,6 +179,7 @@ public class KnetMan : NetworkManager
         // instantiating a "Player" prefab gives it the name "Player(clone)"
         // => appending the connectionId is WAY more useful for debugging!
         player.name = $"{playerPrefab.name} [connId={conn.connectionId}]";
+        // the object spawning here is the NETCLIENT, aka a represent of client
         connbook[conn] = player;
         NetworkServer.AddPlayerForConnection(conn, player);
     }
@@ -284,10 +283,12 @@ public class KnetMan : NetworkManager
         NetworkServer.RegisterHandler<Msg_Lobby>(AssistMan._ins.MsgtoSer_Lobby);
         NetworkServer.RegisterHandler<Msg_StartGame>(AssistMan._ins.MsgtoSer_StartGame);
         NetworkServer.RegisterHandler<Msg_SpawnMe>(AssistMan._ins.MsgtoSer_SpawnMe);
-                    
-        //loading scene on ser it self - if server only mode
+        
+        /*
+        // todo: ok ---> loading scene on ser it self - if server only mode
         if(NetworkManager.singleton.mode == NetworkManagerMode.ServerOnly)
             SceneManager.LoadScene("Scene_001");
+            */
     }
     
     /// <summary>
@@ -296,10 +297,6 @@ public class KnetMan : NetworkManager
     /// </summary>
     public override void OnStartClient()
     {
-        if (roomPlayerPrefab != null)
-        {
-            NetworkClient.RegisterPrefab(roomPlayerPrefab);
-        }
         NetworkClient.RegisterHandler<Msg_Welcome>(AssistMan._ins.Msgres_Welcome);
         NetworkClient.RegisterHandler<Msg_RoomInGeneral>(AssistMan._ins.MsgtoCli_RoomInGenral);
         NetworkClient.RegisterHandler<Msg_JoinRoom>(AssistMan._ins.MsgtoCli_JoinRoom);

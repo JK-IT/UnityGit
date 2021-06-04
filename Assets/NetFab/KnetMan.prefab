@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: 5955518870530997213}
   - component: {fileID: 5955518870530997214}
   - component: {fileID: 786270581}
-  - component: {fileID: -273667124992126628}
+  - component: {fileID: -8702198347112190688}
   m_Layer: 0
   m_Name: KnetMan
   m_TagString: Untagged
@@ -75,17 +75,18 @@ MonoBehaviour:
   disconnectInactiveConnections: 0
   disconnectInactiveTimeout: 60
   authenticator: {fileID: 0}
-  playerPrefab: {fileID: 971162094880389037, guid: e126f5f896e07b948a41622ea0fcc580, type: 3}
+  playerPrefab: {fileID: 5428639407194162199, guid: 6381fac1fadc6684b9cfe5ead5c20fdd, type: 3}
   autoCreatePlayer: 0
   playerSpawnMethod: 0
   spawnPrefabs:
-  - {fileID: 9114769503418075620, guid: 201327a491e25074cb132b539c6ec41e, type: 3}
-  roomPlayerPrefab: {fileID: 5337312365173619982, guid: 52a116b1b5b91444b9ecf2f203ab76a6, type: 3}
+  - {fileID: 971162094880389037, guid: e126f5f896e07b948a41622ea0fcc580, type: 3}
+  - {fileID: 109636580096915002, guid: 191ac9a881272394d95503ca0226839c, type: 3}
+  - {fileID: 5416629537635732511, guid: 6a0b592d3b1fe964b8e34e2d84562344, type: 3}
   SpawnLocation:
-  - {fileID: 8190937514617398449, guid: 476a3d292b1bf24449387184404fca6b, type: 3}
-  - {fileID: 718929143646791561, guid: 3da21912ec41c054bbed4d6254c50846, type: 3}
-  - {fileID: 3848645886067065546, guid: 92bdece33471e164ab042512ed50b90a, type: 3}
-  - {fileID: 768477722667854429, guid: 2b9861ab18427044796928266a67c1ed, type: 3}
+  - {fileID: 5504452839657133901, guid: 476a3d292b1bf24449387184404fca6b, type: 3}
+  - {fileID: 2975220924644033281, guid: 3da21912ec41c054bbed4d6254c50846, type: 3}
+  - {fileID: 4198851174541577264, guid: 92bdece33471e164ab042512ed50b90a, type: 3}
+  - {fileID: 3054034145477153804, guid: 2b9861ab18427044796928266a67c1ed, type: 3}
 --- !u!114 &5955518870530997214
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -123,7 +124,7 @@ MonoBehaviour:
   showGUI: 1
   offsetX: 0
   offsetY: 0
---- !u!114 &-273667124992126628
+--- !u!114 &-8702198347112190688
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -137,5 +138,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   visRange: 30
   rebuildInterval: 1
-  checkMethod: 1
+  checkMethod: 0
   showSlider: 0
+  roomBasedVisibility: 0

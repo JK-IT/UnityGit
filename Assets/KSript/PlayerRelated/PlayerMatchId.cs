@@ -9,32 +9,39 @@ public class PlayerMatchId : MonoBehaviour
 {
     public Guid matchGuid;
     [FormerlySerializedAs("matchGuid")] [SerializeField] public string string_match_guid;
-    [SerializeField] public List<int> connidofobserver = new List<int>();
 
-    private NetworkIdentity netidenThisobject;
+    public static PlayerMatchId _ins;
+    
+    #region =========== UNITY CALL BACK REGIONS
 
+    // Start is called before the first frame update
+        void Start()
+        {
+            
+        }
+    
+        // Update is called once per frame
+        void Update()
+        {
+            
+        }
+
+    #endregion
+    
+
+
+    #region ============= Function region
+    
     public void SetGuid(Guid inguid)
     {
         matchGuid = inguid;
         string_match_guid = inguid.ToString();
     }
-    
-    public static PlayerMatchId _ins;
-    // Start is called before the first frame update
-    void Start()
+
+    public string GetGuid()
     {
-        netidenThisobject = this.gameObject.GetComponent<NetworkIdentity>();
-
+        return string_match_guid;
     }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
-
-
-    #region ============= EVENT HANDLER region
     
 
     #endregion
