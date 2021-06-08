@@ -11,7 +11,9 @@ GameObject:
   - component: {fileID: 5955518870530997212}
   - component: {fileID: 627635315219824671}
   - component: {fileID: 5955518870530997213}
+  - component: {fileID: 1306606683}
   - component: {fileID: 5955518870530997214}
+  - component: {fileID: 1306606682}
   - component: {fileID: 786270581}
   - component: {fileID: -8702198347112190688}
   m_Layer: 0
@@ -69,7 +71,7 @@ MonoBehaviour:
   serverBatchInterval: 0
   offlineScene: 
   onlineScene: 
-  transport: {fileID: 5955518870530997214}
+  transport: {fileID: 1306606683}
   networkAddress: 127.0.0.1
   maxConnections: 100
   disconnectInactiveConnections: 0
@@ -87,6 +89,21 @@ MonoBehaviour:
   - {fileID: 2975220924644033281, guid: 3da21912ec41c054bbed4d6254c50846, type: 3}
   - {fileID: 4198851174541577264, guid: 92bdece33471e164ab042512ed50b90a, type: 3}
   - {fileID: 3054034145477153804, guid: 2b9861ab18427044796928266a67c1ed, type: 3}
+--- !u!114 &1306606683
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5955518870530997215}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 330c9aab13d2d42069c6ebbe582b73ca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  transports:
+  - {fileID: 5955518870530997214}
+  - {fileID: 1306606682}
 --- !u!114 &5955518870530997214
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -109,6 +126,30 @@ MonoBehaviour:
   debugLog: 1
   statisticsGUI: 1
   statisticsLog: 0
+--- !u!114 &1306606682
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5955518870530997215}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c7424c1070fad4ba2a7a96b02fbeb4bb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  port: 7777
+  NoDelay: 1
+  SendTimeout: 5000
+  ReceiveTimeout: 30000
+  serverMaxMessageSize: 16384
+  serverMaxReceivesPerTick: 10000
+  serverSendQueueLimitPerConnection: 10000
+  serverReceiveQueueLimitPerConnection: 10000
+  clientMaxMessageSize: 16384
+  clientMaxReceivesPerTick: 1000
+  clientSendQueueLimit: 10000
+  clientReceiveQueueLimit: 10000
 --- !u!114 &786270581
 MonoBehaviour:
   m_ObjectHideFlags: 0
