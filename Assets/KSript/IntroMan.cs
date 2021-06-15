@@ -6,6 +6,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using TMPro;
+using Unity.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.Serialization;
@@ -93,5 +94,15 @@ public class IntroMan : MonoBehaviour
     {
         
     }
-
+    
+    //888888888888888888888888888888888888888888888888
+    //------------------- USED FOR DEBUG
+    public void LocalDebug()
+    {
+        KnetMan kn = GameObject.Find("KnetMan").GetComponent<KnetMan>();
+        
+        kn.networkAddress = "127.0.0.1";
+        kn.StartClient();
+    }
+    
 }

@@ -4,10 +4,11 @@ using System.Collections.Generic;
 using UnityEngine;
 using Mirror;
 using UnityEngine.SceneManagement;
+using UnityEngine.Serialization;
 
 public class AssistMan : MonoBehaviour
 {
-    public int cliConnId;
+    [FormerlySerializedAs("cliConnId")] public int myCliConnId;
     //* connection to server, which will be assign in OnClientConnect()
     public NetworkConnection conntoserver;
 
@@ -25,7 +26,7 @@ public class AssistMan : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        H.klog($"Assist Man Starting");
+        H.klog($"Assist Man Starting -- Init assistman instance and register _knet _ins" );
         _ins = this;
         _knet = this.gameObject.GetComponent<KnetMan>();
     }
@@ -40,7 +41,7 @@ public class AssistMan : MonoBehaviour
     {
         if (sceneloading != null &&  sceneloading.isDone)
         {
-            conntoserver.Send(new Msg_StartGame{doneloading = true, comcode = ComCode.SceneLoading, roomid = GameMan.ins.currentRoomid_cli});
+            conntoserver.Send(new Msg_StartGame{doneloading = true, comcode = ComCode.SceneLoading, roomid = GameMan._ins.currentRoomid_cli});
             sceneloading = null;
         }
     }
@@ -51,7 +52,7 @@ public class AssistMan : MonoBehaviour
 
     public void Req_CreateRoom()
     {
-        //H.klog2($"I {cliConnId} request server {conntoserver} to create room ", this.name);
+        //H.klog2($"I {myCliConnId} request server {conntoserver} to create room ", this.name);
         //H.klog($"Name that ask to CCREATE from UI : {DataMan._ins.playerdat.GetName()}");
         conntoserver.Send(new Msg_RoomInGeneral{urname =  DataMan._ins.playerdat.GetName(), comcode = ComCode.CreateRoom});
     }
@@ -91,7 +92,7 @@ public class AssistMan : MonoBehaviour
         if (!NetworkClient.ready)
             NetworkClient.Ready();
         // send to server to spawn player obj
-        conntoserver.Send(new Msg_SpawnMe{comCode = ComCode.SpawnMe, roomid = GameMan.ins.currentRoomid_cli});
+        conntoserver.Send(new Msg_SpawnMe{comCode = ComCode.SpawnMe, roomid = GameMan._ins.currentRoomid_cli});
     }
     /// <summary>
     ///     SERVER CALLS THIS
@@ -101,30 +102,36 @@ public class AssistMan : MonoBehaviour
     /// <param name="conn"></param>
     public void Client_Disconnect_ser(NetworkConnection conn)
     {
-        if (GameMan.ins.playerTab_ser.ContainsKey(conn.connectionId))
+        if (GameMan._ins.playerTab_ser.ContainsKey(conn.connectionId))
         {   //get room id from player table
-            string roid = GameMan.ins.playerTab_ser[conn.connectionId];
-            if (GameMan.ins.roomTab_ser.ContainsKey(roid))
+            string roid = GameMan._ins.playerTab_ser[conn.connectionId];
+            if (GameMan._ins.roomTab_ser.ContainsKey(roid))
             {
                 LeaveAndPromote(roid, conn, new Msg_Lobby{comcode = ComCode.LeaveRoom, playerconnid = conn.connectionId});
             }
             H.klog($"Function Called to remove DISCONNECTED {conn.connectionId} from Game Manager");
-            GameMan.ins.playerTab_ser.Remove(conn.connectionId);
+            GameMan._ins.playerTab_ser.Remove(conn.connectionId);
         }
     }
     #endregion
 
     #region ======== MSG RELATED ============
 
-    public void Msgreq_Welcome(NetworkConnection conn, Msg_Welcome msg)
+    public void MsgtoSer_Welcome(NetworkConnection conn, Msg_Welcome msg)
     {
-        H.klog($"Server got a msgSer from {conn.connectionId} => {msg.wlcomemsg}");
+        H.klog1($"Server got a msgSer from {conn.connectionId} => {msg.wlcomemsg}", this.name);
+        if(msg.fabid != "")
+            _knet.UpdateFabidForConn(conn.connectionId, msg.fabid);
+        
     }
     
-    public void Msgres_Welcome(Msg_Welcome msg)
+    public void MsgtoCli_Welcome(Msg_Welcome msg)
     {
-        H.klog($"Client got a msgSer from Server => {msg.wlcomemsg}");
-        AssistMan._ins.cliConnId = msg.cliconnid;
+        H.klog1($"Client got a msgSer from Server => {msg.wlcomemsg}", this.name);
+        AssistMan._ins.myCliConnId = msg.cliconnid;
+        // setup conn id on _myIden if this client is login and authenticated
+        if(FabAuthenCodeNLogin.authenNverified)
+            FabAuthenCodeNLogin._ins.SetCliConnidToIden(msg.cliconnid);
     }
     public void MsgtoSer_RoomInGeneral(NetworkConnection cliconn, Msg_RoomInGeneral inmsg)
     {
@@ -133,9 +140,9 @@ public class AssistMan : MonoBehaviour
             //H.klog2($"Client - {cliconn} send me room req, what hsould id o", this.name);
             string id = H.GenIds();
             // set up room list on server, assign this cliconn as leader
-            GameMan.ins.SetupRoom_Ser(id, cliconn, inmsg.urname);
+            GameMan._ins.SetupRoom_Ser(id, cliconn, inmsg.urname);
             // assign the connection id with room id
-            GameMan.ins.playerTab_ser.Add(cliconn.connectionId, id);
+            GameMan._ins.playerTab_ser.Add(cliconn.connectionId, id);
             // sending created room id to client
             Msg_RoomInGeneral sendtocli = new Msg_RoomInGeneral() {roomids = id, comcode = ComCode.CreateRoom};
             cliconn.Send(sendtocli);
@@ -146,14 +153,14 @@ public class AssistMan : MonoBehaviour
             Msg_Lobby resmsg = new Msg_Lobby {comcode = ComCode.LeaveRoom, playerconnid = cliconn.connectionId};
             // send message to all member to remove the one that leave
             //cli who sends this still connect to server
-            if (GameMan.ins.roomTab_ser.ContainsKey(inmsg.roomids))
+            if (GameMan._ins.roomTab_ser.ContainsKey(inmsg.roomids))
             {
                 LeaveAndPromote(inmsg.roomids, cliconn, resmsg);
             }
             // remove player from player table
             H.klog($"remove LEAVING {cliconn.connectionId} from Game Manager");
-            if(GameMan.ins.playerTab_ser.ContainsKey(cliconn.connectionId))
-                GameMan.ins.playerTab_ser.Remove(cliconn.connectionId);
+            if(GameMan._ins.playerTab_ser.ContainsKey(cliconn.connectionId))
+                GameMan._ins.playerTab_ser.Remove(cliconn.connectionId);
         }
     }
 
@@ -161,7 +168,7 @@ public class AssistMan : MonoBehaviour
     {
         if (sermsg.comcode == ComCode.CreateRoom)
         {
-            GameMan.ins.SetupRoom_Cli(sermsg.roomids, true);
+            GameMan._ins.SetupRoom_Cli(sermsg.roomids, true);
         }
     }
     
@@ -169,9 +176,9 @@ public class AssistMan : MonoBehaviour
     public void MsgtoSer_JoinRoom(NetworkConnection cliconn, Msg_JoinRoom msg)
     {
         H.klog($"Got req to join from {cliconn.connectionId} , with name {msg.mename}");
-        if (GameMan.ins.roomTab_ser.ContainsKey(msg.idtojoin))
+        if (GameMan._ins.roomTab_ser.ContainsKey(msg.idtojoin))
         {   //prepare for message to send
-            GameMan.Room ro = GameMan.ins.roomTab_ser[msg.idtojoin];
+            GameMan.Room ro = GameMan._ins.roomTab_ser[msg.idtojoin];
             List<int> memid = new List<int>();
             List<string> memname = new List<string>();
             List<bool> memstate = new List<bool>();
@@ -207,9 +214,9 @@ public class AssistMan : MonoBehaviour
             cliconn.Send(mess);
             
             // adding cliconn as room member on server
-            GameMan.ins.AddRoomPlayer_Ser(msg.idtojoin, cliconn, msg.mename);
+            GameMan._ins.AddRoomPlayer_Ser(msg.idtojoin, cliconn, msg.mename);
             //adding player to player table
-            GameMan.ins.playerTab_ser.Add(cliconn.connectionId, msg.idtojoin);
+            GameMan._ins.playerTab_ser.Add(cliconn.connectionId, msg.idtojoin);
             
         }
     }
@@ -217,15 +224,15 @@ public class AssistMan : MonoBehaviour
     public void MsgtoCli_JoinRoom(Msg_JoinRoom sermsg)
     {
         // open game room and add itself
-        GameMan.ins.SetupRoom_Cli(sermsg.idtojoin);
+        GameMan._ins.SetupRoom_Cli(sermsg.idtojoin);
         // adding leader badge to the room
-        GameMan.ins.AddRoomPlayerUI_Cli(sermsg.leaderid, sermsg.leadername, true);
+        GameMan._ins.AddRoomPlayerUI_Cli(sermsg.leaderid, sermsg.leadername, true);
         // add extra lobby player
         if (sermsg.memcount != 0)
         {
             for (int i = 0; i < sermsg.memcount; i++)
             {
-                GameMan.ins.AddRoomPlayerUI_Cli(sermsg.members[i], sermsg.roommemnames[i], false ,sermsg.memstate[i]);
+                GameMan._ins.AddRoomPlayerUI_Cli(sermsg.members[i], sermsg.roommemnames[i], false ,sermsg.memstate[i]);
             }
         }
     }
@@ -234,9 +241,9 @@ public class AssistMan : MonoBehaviour
     {
         if (climsg.comcode == ComCode.ReadyFlag)
         {
-            if (GameMan.ins.roomTab_ser.ContainsKey(climsg.roomid))
+            if (GameMan._ins.roomTab_ser.ContainsKey(climsg.roomid))
             {
-                GameMan.Room ro = GameMan.ins.roomTab_ser[climsg.roomid];
+                GameMan.Room ro = GameMan._ins.roomTab_ser[climsg.roomid];
                 if (ro.readyflags.ContainsKey(cliconn.connectionId))
                     ro.readyflags[cliconn.connectionId] = climsg.rdyFlag;
                 else
@@ -264,26 +271,26 @@ public class AssistMan : MonoBehaviour
     public void MsgtoCli_Lobby(Msg_Lobby sermsg)
     {
         if (sermsg.comcode == ComCode.JoinRoom)
-            GameMan.ins.AddRoomPlayerUI_Cli(sermsg.playerconnid, sermsg.playername);
+            GameMan._ins.AddRoomPlayerUI_Cli(sermsg.playerconnid, sermsg.playername);
         else if (sermsg.comcode == ComCode.LeaveRoom)
         {
-            GameMan.ins.RemovePlayer_Cli(sermsg.playerconnid);
+            GameMan._ins.RemovePlayer_Cli(sermsg.playerconnid);
         } 
         else if (sermsg.comcode == ComCode.ReadyFlag)
         {
-            GameMan.ins.ChangeReadyUI_Cli(sermsg.playerconnid, sermsg.rdyornot);
+            GameMan._ins.ChangeReadyUI_Cli(sermsg.playerconnid, sermsg.rdyornot);
         }
         else if (sermsg.comcode == ComCode.AllReady)
         {
-            GameMan.ins.EnableStartButton(sermsg.enaRoomStart);
+            GameMan._ins.EnableStartButton(sermsg.enaRoomStart);
         }
         else if (sermsg.comcode == ComCode.SetLeader)
         {
-            GameMan.ins.SetLeaderUI(sermsg.ureleader);
+            GameMan._ins.SetLeaderUI(sermsg.ureleader);
         } 
         else if (sermsg.comcode == ComCode.ChangeLeader)
         {
-            GameMan.ins.ChangLeader_Cli(sermsg.playerconnid);
+            GameMan._ins.ChangLeader_Cli(sermsg.playerconnid);
         }
     }
 
@@ -293,9 +300,9 @@ public class AssistMan : MonoBehaviour
         if (climsg.comcode == ComCode.StartGame)
         { 
             H.klog($"Server got msg to start game at room {climsg.roomid}");
-            if (GameMan.ins.roomTab_ser.ContainsKey(climsg.roomid))
+            if (GameMan._ins.roomTab_ser.ContainsKey(climsg.roomid))
             {
-                GameMan.Room ro = GameMan.ins.roomTab_ser[climsg.roomid];
+                GameMan.Room ro = GameMan._ins.roomTab_ser[climsg.roomid];
                 // sending loading message to leader and all other member
                 Msg_StartGame mess = new Msg_StartGame {sceneName = "Scene_001", comcode = ComCode.StartGame, load_scene_command = true};
                 ro.leader.Send(mess);
@@ -303,15 +310,15 @@ public class AssistMan : MonoBehaviour
                 {
                     ro.members[i].Send(mess);
                 }
-                GameMan.ins.SetupMatchIns(climsg.roomid);
+                GameMan._ins.SetupMatchIns(climsg.roomid);
             }
         } 
         else if (climsg.comcode == ComCode.SceneLoading)
         {
             H.klog($"This client {cliconn.connectionId} finishes loading scene");
-            if (GameMan.ins.roomTab_ser.ContainsKey(climsg.roomid))
+            if (GameMan._ins.roomTab_ser.ContainsKey(climsg.roomid))
             {
-                GameMan.Room ro = GameMan.ins.roomTab_ser[climsg.roomid];
+                GameMan.Room ro = GameMan._ins.roomTab_ser[climsg.roomid];
                 if (ro.members.Count == 0)
                 {
                     ro.leader.Send(new Msg_StartGame{comcode = ComCode.StartGame, rdyNspawn = true});
@@ -361,8 +368,8 @@ public class AssistMan : MonoBehaviour
             {
                 GameObject go;
                 //spawn this as child of MATCH INSTANCE GAME OBJECT
-                if (GameMan.ins.MatchIns_ser.ContainsKey(climsg.roomid))
-                    go = Instantiate(_knet.playerPrefab, GameMan.ins.MatchIns_ser[climsg.roomid].transform);
+                if (GameMan._ins.MatchIns_ser.ContainsKey(climsg.roomid))
+                    go = Instantiate(_knet.playerPrefab, GameMan._ins.MatchIns_ser[climsg.roomid].transform);
                 else
                 {
                     H.klog2($"error spawning this game object with parent", this.name, "#ff0000");
@@ -381,14 +388,14 @@ public class AssistMan : MonoBehaviour
                     go.layer = go.transform.parent.gameObject.layer;
                 }
                 // add to KnetMan ConnBook 
-                if (KnetMan.connbook.ContainsKey(cliconn))
+                if (KnetMan.cliBook.ContainsKey(cliconn))
                 {
-                    KnetMan.connbook[cliconn] = go;
+                    KnetMan.cliBook[cliconn] = go;
                 }
                 else
                 {
                     H.klog($"cannot find connection in ConnBook of Knetman => adding new entry");
-                    KnetMan.connbook.Add(cliconn, go);
+                    KnetMan.cliBook.Add(cliconn, go);
                 }
                 NetworkServer.AddPlayerForConnection(cliconn, go);
             }
@@ -396,10 +403,10 @@ public class AssistMan : MonoBehaviour
         else if (climsg.comCode == ComCode.SpawnNCustom)
         {
             H.klog2($"Server got Msg to Spawn Playable obj for {cliconn.connectionId}", this.name, "#2e8b57");
-            // using knetMan connbook to look up for game object
-            if (KnetMan.connbook.ContainsKey(cliconn))
+            // using knetMan cliBook to look up for game object
+            if (KnetMan.cliBook.ContainsKey(cliconn))
             {
-                string guid = KnetMan.connbook[cliconn].GetComponent<PlayerMatchId>().GetGuid();
+                string guid = KnetMan.cliBook[cliconn].GetComponent<PlayerMatchId>().GetGuid();
                 SpawnPlayableObj(cliconn, guid, climsg);
             }
             else
@@ -408,6 +415,14 @@ public class AssistMan : MonoBehaviour
             }
         }
     }
+
+    public static void MsgtoCli_Maintenance(Msg_Maintenance msg)
+    {
+        DateTime dt = msg.maintenTime;
+        H.klog($"Cli Got Server Time to maintain {dt}");
+        // TODO: DISPLAY POPUP TO SHOW THEM TIME SERVER WILL BE MAINTAINED
+    }
+    
     
     #endregion
 
@@ -421,14 +436,14 @@ public class AssistMan : MonoBehaviour
     /// <param name="mess"> Contains the id of conn that leave</param>
     private void LeaveAndPromote(string roomid,NetworkConnection cliconn  ,Msg_Lobby mess)
     {
-        if (GameMan.ins.roomTab_ser.ContainsKey(roomid))
+        if (GameMan._ins.roomTab_ser.ContainsKey(roomid))
         {
             // send msg to all players in the room
-            GameMan.Room ro = GameMan.ins.roomTab_ser[roomid];
+            GameMan.Room ro = GameMan._ins.roomTab_ser[roomid];
             if (ro.members.Count == 0)
             {
                 // remove the room from room list, cuz no one else left
-                GameMan.ins.roomTab_ser.Remove(roomid);
+                GameMan._ins.roomTab_ser.Remove(roomid);
             }
             else
             {
@@ -509,7 +524,7 @@ public class AssistMan : MonoBehaviour
     public void SpawnPlayableObj(NetworkConnection cli, string guid, Msg_SpawnMe inmsg)
     {
         H.klog($" Spawning PLAYABLE OBJECT  for conn {cli.connectionId}");
-        GameObject go = Instantiate( _knet.spawnPrefabs.Find(x => x.name.Contains("Ppo")), KnetMan.connbook[cli].transform.parent);
+        GameObject go = Instantiate( _knet.spawnPrefabs.Find(x => x.name.Contains("Ppo")), KnetMan.cliBook[cli].transform.parent);
         
         go.name = $"pp0 {cli.connectionId}";
         go.GetComponent<PlayerMatchId>().SetGuid(Guid.Parse(guid));
@@ -534,4 +549,5 @@ public class AssistMan : MonoBehaviour
     
 
     #endregion
+    
 }

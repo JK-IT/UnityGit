@@ -13,7 +13,7 @@ public class GameMan : MonoBehaviour
 
     #region ================== VARIABLE
 
-    public static GameMan ins = null;
+    public static GameMan _ins = null;
     private static PlayerRep prep = null;
 
     private string defRoomTitle = "Room ID: ";
@@ -56,6 +56,7 @@ public class GameMan : MonoBehaviour
 
     public void UIServer()
     {
+        H.klog1($"UI Start SErver", this.name);
         KnetMan.singleton.StartServer();
         //SetUIonConnect();
     }
@@ -381,8 +382,8 @@ public class GameMan : MonoBehaviour
     void Start()
     {
         H.klog($"Game Manager Starting");
-        ins = this;
-        DontDestroyOnLoad(ins);
+        _ins = this;
+        DontDestroyOnLoad(_ins);
         InitUI();
     }
 

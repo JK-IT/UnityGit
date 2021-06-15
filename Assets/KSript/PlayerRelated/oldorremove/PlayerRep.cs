@@ -106,7 +106,7 @@ public class PlayerRep : NetworkBehaviour
         if (NetworkServer.active && conn != null)
         {
             GameObject go = null;
-            if (KnetMan.connbook.TryGetValue(conn, out go))
+            if (KnetMan.cliBook.TryGetValue(conn, out go))
             {
                 ins = go.GetComponent<PlayerRep>();
                 return ins;
@@ -147,7 +147,7 @@ public class PlayerRep : NetworkBehaviour
         if (pbadge != null)
         {
             H.klog($"Client - pbadge is {pbadge.name}");
-            GameMan.ins.AddRoomPlayerUI_Cli(pbadge);
+            GameMan._ins.AddRoomPlayerUI_Cli(pbadge);
         }
     }
 */

@@ -11,6 +11,12 @@ namespace PlayFab.PfEditor
 {
     public class PlayFabEditorHttp : UnityEditor.Editor
     {
+        
+        private void OnDisable()
+        {
+            
+        }
+
         internal static void MakeDownloadCall(string url, Action<string> resultCallback)
         {
 #if UNITY_2018_2_OR_NEWER
@@ -71,33 +77,40 @@ namespace PlayFab.PfEditor
             //Encode Payload
             var payload = System.Text.Encoding.UTF8.GetBytes(req.Trim());
 #if UNITY_2018_2_OR_NEWER
-            var www = new UnityWebRequest(url)
-            {
-                uploadHandler = new UploadHandlerRaw(payload),
-                downloadHandler = new DownloadHandlerBuffer(),
-                method = "POST"
-            };
-
-            foreach (var header in headers)
-            {
-                if (!string.IsNullOrEmpty(header.Key) && !string.IsNullOrEmpty(header.Value))
+            
+            ////------------------------- K code
+            //using (var www = new UnityWebRequest(url))
+            //{
+                var www = new UnityWebRequest(url)
                 {
-                    www.SetRequestHeader(header.Key, header.Value);
-                }
-                else
+                    uploadHandler = new UploadHandlerRaw(payload),
+                    downloadHandler = new DownloadHandlerBuffer(),
+                    method = "POST"
+                };
+
+                foreach (var header in headers)
                 {
-                    UnityEngine.Debug.LogWarning("Null header");
+                    if (!string.IsNullOrEmpty(header.Key) && !string.IsNullOrEmpty(header.Value))
+                    {
+                        www.SetRequestHeader(header.Key, header.Value);
+                    }
+                    else
+                    {
+                        UnityEngine.Debug.LogWarning("Null header");
+                    }
                 }
-            }
 
 
-            PlayFabEditor.RaiseStateUpdate(PlayFabEditor.EdExStates.OnHttpReq, api, PlayFabEditorHelper.MSG_SPIN_BLOCK);
-            EditorCoroutine.Start(Post(www, (response) => { OnWwwSuccess(api, resultCallback, errorCallback, response); }, (error) => { OnWwwError(errorCallback, error); }), www);
-#else
-            var www = new WWW(url, payload, headers);
-            PlayFabEditor.RaiseStateUpdate(PlayFabEditor.EdExStates.OnHttpReq, api, PlayFabEditorHelper.MSG_SPIN_BLOCK);
-            EditorCoroutine.Start(Post(www, (response) => { OnWwwSuccess(api, resultCallback, errorCallback, response); }, (error) => { OnWwwError(errorCallback, error); }), www);
-#endif
+                PlayFabEditor.RaiseStateUpdate(PlayFabEditor.EdExStates.OnHttpReq, api, PlayFabEditorHelper.MSG_SPIN_BLOCK);
+                EditorCoroutine.Start(Post(www, (response) => { OnWwwSuccess(api, resultCallback, errorCallback, response); }, (error) => { OnWwwError(errorCallback, error); }), www);
+    #else
+                var www = new WWW(url, payload, headers);
+                PlayFabEditor.RaiseStateUpdate(PlayFabEditor.EdExStates.OnHttpReq, api, PlayFabEditorHelper.MSG_SPIN_BLOCK);
+                EditorCoroutine.Start(Post(www, (response) => { OnWwwSuccess(api, resultCallback, errorCallback, response); }, (error) => { OnWwwError(errorCallback, error); }), www);
+    #endif
+                //www.Dispose();
+            //}
+
         }
 
         private static void OnWwwSuccess<TResultType>(string api, Action<TResultType> resultCallback, Action<PlayFab.PfEditor.EditorModels.PlayFabError> errorCallback, string response) where TResultType : class
@@ -169,14 +182,15 @@ namespace PlayFab.PfEditor
 #if UNITY_2018_2_OR_NEWER
         private static IEnumerator Post(UnityWebRequest www, Action<string> callBack, Action<string> errorCallback)
         {
-            if (www != null)
+            var lowww = www;
+            if (lowww != null)
             {
-                yield return www.SendWebRequest();
+                yield return lowww.SendWebRequest();
 
-                if (!string.IsNullOrEmpty(www.error))
-                    errorCallback(www.error);
+                if (!string.IsNullOrEmpty(lowww.error))
+                    errorCallback(lowww.error);
                 else
-                    callBack(www.downloadHandler.text);
+                    callBack(lowww.downloadHandler.text);
             }
             else
             {
@@ -187,14 +201,15 @@ namespace PlayFab.PfEditor
 
         private static IEnumerator PostDownload(UnityWebRequest www, Action<byte[]> callBack, Action<string> errorCallback)
         {
-            if (www != null)
+            var lowww = www;
+            if (lowww != null)
             {
                 yield return www.SendWebRequest();
 
-                if (!string.IsNullOrEmpty(www.error) || www.isHttpError)
+                if (!string.IsNullOrEmpty(lowww.error) || lowww.isHttpError)
                     errorCallback(www.error);
                 else
-                    callBack(www.downloadHandler.data);
+                    callBack(lowww.downloadHandler.data);
             }
             else
             {

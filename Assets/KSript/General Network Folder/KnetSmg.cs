@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -7,6 +8,7 @@ public struct Msg_Welcome : NetworkMessage
 {
     public string wlcomemsg;
     public int cliconnid;
+    public string fabid;
 }
 
 public enum ComCode
@@ -85,11 +87,28 @@ public struct Msg_SpawnMe : NetworkMessage
     
     public Vector3 position;
     public string colorhex;
-
-
-
+    
     // info to server : character customization
     // info to client:...
 
 }
 
+public struct Msg_Maintenance : NetworkMessage
+{
+    public DateTime maintenTime;
+}
+
+public static class DateTimeReadWrite
+{
+    public static void WriteDateTime(this NetworkWriter writer, DateTime val)
+    {
+        string str = JsonUtility.ToJson(val);
+        writer.Write(str);
+    }
+
+    public static DateTime ReadDateTime(this NetworkReader reader)
+    {
+        string str = reader.ReadString();
+        return (DateTime)JsonUtility.FromJson<DateTime>(str);
+    }
+}

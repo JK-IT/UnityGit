@@ -3,7 +3,10 @@ using UnityEngine.SceneManagement;
 using Mirror;
 using System;
 using System.Collections.Generic;
+using System.Net;
+using kcp2k;
 using UnityEditor;
+using UnityEngine.Events;
 
 /*
 	Documentation: https://mirror-networking.com/docs/Components/NetworkManager.html
@@ -12,10 +15,24 @@ using UnityEditor;
 
 public class KnetMan : NetworkManager
 {
-    public static Dictionary<NetworkConnection, GameObject> connbook = new Dictionary<NetworkConnection, GameObject>();
+    public static KnetMan _kins;
+    
+    
+    // book of Network Connection and Player GameObject
+    public static Dictionary<NetworkConnection, GameObject> cliBook = new Dictionary<NetworkConnection, GameObject>();
+    // book of Connid and playfabID
+    public static Dictionary<int, string> connIdenBook = new Dictionary<int, string>();
+    
+    // event for adding and removing player
+    public Action<string> evnPlayerAdded;
+    public Action<string> evnPlayerRemoved;
     
     [Tooltip("Player Spawning Location")] [Header("Spawn Location")] [SerializeField]
     public List<GameObject> SpawnLocation = new List<GameObject>();
+    
+    //888888888888888888888888888888888888888888888888888
+    // ------------ Debug Variable
+    //777777777777777777777777777777777777777777777777777
     //------------------------
     #region Unity Callbacks
 
@@ -30,7 +47,7 @@ public class KnetMan : NetworkManager
     /// </summary>
     public override void Awake()
     {
-        this.networkAddress = "127.0.0.1";
+        //this.networkAddress = "127.0.0.1";
         base.Awake();
     }
 
@@ -42,6 +59,7 @@ public class KnetMan : NetworkManager
     {
         H.klog($"Knet Manager Starting");
         base.Start();
+        _kins = this;
     }
 
     /// <summary>
@@ -142,12 +160,16 @@ public class KnetMan : NetworkManager
     /// <param name="conn">Connection from client.</param>
     public override void OnServerConnect(NetworkConnection conn)
     {
-        connbook.Add(conn, null);
+        H.klog1($"Server Getting a Connection from client ", this.name);
+        
+        AddCliOnConnect(conn);
+        
         // sending not ready msg
         NetworkServer.SetClientNotReady(conn);
         Msg_Welcome msgtocli = new Msg_Welcome {wlcomemsg = $"Hey , my friends {conn.connectionId}", cliconnid = conn.connectionId};
         conn.Send(msgtocli);
-        
+        Msg_Maintenance msgMaintenance = new Msg_Maintenance {maintenTime = DateTime.Now};
+        conn.Send(msgMaintenance);
     }
 
     /// <summary>
@@ -180,7 +202,7 @@ public class KnetMan : NetworkManager
         // => appending the connectionId is WAY more useful for debugging!
         player.name = $"{playerPrefab.name} [connId={conn.connectionId}]";
         // the object spawning here is the NETCLIENT, aka a represent of client
-        connbook[conn] = player;
+        cliBook[conn] = player;
         NetworkServer.AddPlayerForConnection(conn, player);
     }
 
@@ -191,9 +213,13 @@ public class KnetMan : NetworkManager
     /// <param name="conn">Connection from client.</param>
     public override void OnServerDisconnect(NetworkConnection conn)
     {
-        H.klog($"Client {conn.connectionId} just disconnect from server");
-        AssistMan._ins.Client_Disconnect_ser(conn); // send the disconnected conn to assistman
-        connbook.Remove(conn);
+        H.klog1($"Client {conn.connectionId} just disconnect from server", this.name);
+        
+        if(GameMan._ins != null)
+            AssistMan._ins.Client_Disconnect_ser(conn); // send the disconnected conn to assistman
+        
+        RemoveCliOnDisconnect(conn);
+        
         base.OnServerDisconnect(conn);
     }
 
@@ -229,8 +255,11 @@ public class KnetMan : NetworkManager
             }
         }
         //base.OnClientConnect(conn);
-    // ----     END BASE ON CLIENT CONNECT    
-    serconn.Send(new Msg_Welcome{wlcomemsg = $"Anal, Im connecting to server"});
+        // ----     END BASE ON CLIENT CONNECT    
+        //sending welcome msg to server and also fabid
+        Msg_Welcome msg = new Msg_Welcome {wlcomemsg = $"Anal, Im connecting to server + fabid"};
+        msg.fabid = (FabAuthenCodeNLogin._ins.GetCliFabid() != null) ? FabAuthenCodeNLogin._ins.GetCliFabid() : "";
+        serconn.Send(msg);
     }
 
     /// <summary>
@@ -242,6 +271,7 @@ public class KnetMan : NetworkManager
     {
         H.klog($"As a client, im disconnecting, try to send msg to server");
         //sending message to server if in a room, with room id
+        // this msg will not come to server if server is the one shuttding down
         conn.Send(new Msg_Welcome{wlcomemsg = $"Bye, i am leaving"});
         base.OnClientDisconnect(conn);
     }
@@ -277,13 +307,14 @@ public class KnetMan : NetworkManager
     /// </summary>
     public override void OnStartServer()
     {
-        NetworkServer.RegisterHandler<Msg_Welcome>(AssistMan._ins.Msgreq_Welcome);
+        NetworkServer.RegisterHandler<Msg_Welcome>(AssistMan._ins.MsgtoSer_Welcome);
         NetworkServer.RegisterHandler<Msg_RoomInGeneral>(AssistMan._ins.MsgtoSer_RoomInGeneral);
         NetworkServer.RegisterHandler<Msg_JoinRoom>(AssistMan._ins.MsgtoSer_JoinRoom);
         NetworkServer.RegisterHandler<Msg_Lobby>(AssistMan._ins.MsgtoSer_Lobby);
         NetworkServer.RegisterHandler<Msg_StartGame>(AssistMan._ins.MsgtoSer_StartGame);
         NetworkServer.RegisterHandler<Msg_SpawnMe>(AssistMan._ins.MsgtoSer_SpawnMe);
         
+        H.klog1($"Server is listening on {networkAddress} - TCP p {this.GetComponent<TelepathyTransport>().port} - KCP p {this.GetComponent<KcpTransport>().Port}", this.name);
         /*
         // todo: ok ---> loading scene on ser it self - if server only mode
         if(NetworkManager.singleton.mode == NetworkManagerMode.ServerOnly)
@@ -297,11 +328,13 @@ public class KnetMan : NetworkManager
     /// </summary>
     public override void OnStartClient()
     {
-        NetworkClient.RegisterHandler<Msg_Welcome>(AssistMan._ins.Msgres_Welcome);
+        NetworkClient.RegisterHandler<Msg_Welcome>(AssistMan._ins.MsgtoCli_Welcome);
         NetworkClient.RegisterHandler<Msg_RoomInGeneral>(AssistMan._ins.MsgtoCli_RoomInGenral);
         NetworkClient.RegisterHandler<Msg_JoinRoom>(AssistMan._ins.MsgtoCli_JoinRoom);
         NetworkClient.RegisterHandler<Msg_Lobby>(AssistMan._ins.MsgtoCli_Lobby);
         NetworkClient.RegisterHandler<Msg_StartGame>(AssistMan._ins.MsgtoCli_StartGame);
+        //sending Maintenance msg
+        NetworkClient.RegisterHandler<Msg_Maintenance>(AssistMan.MsgtoCli_Maintenance);
     }
     
     /// <summary>
@@ -318,6 +351,77 @@ public class KnetMan : NetworkManager
     /// This is called when a client is stopped.
     /// </summary>
     public override void OnStopClient() { }
+
+    #endregion
+
+    #region =================== Helpers
+
+    /**
+     * Remove Client on Disconnect from cliBook and connIdenBook
+     * Invoke evnPlayerRemoved to update FabServer
+     */
+    private void RemoveCliOnDisconnect(NetworkConnection conn)
+    {
+        cliBook.Remove(conn);
+        //evnPlayerRemoved.Invoke("testid");
+        if (connIdenBook[conn.connectionId] != null)
+        {
+            evnPlayerRemoved.Invoke(connIdenBook[conn.connectionId]);
+            connIdenBook.Remove(conn.connectionId);
+        }
+        
+    }
+    
+    /**
+     * Adding conn to cliBook and connIdenBook
+     */
+    private void AddCliOnConnect(NetworkConnection conn)
+    {
+        cliBook.Add(conn, null);
+        connIdenBook.Add(conn.connectionId, null);
+        //string fabid = "testid";
+        //evnPlayerAdded.Invoke(fabid);
+        //addenv.Invoke(fabid);
+    }
+        #endregion
+
+    #region ====================== Fab Related functions
+
+    /**
+     * Set up ip address Port for kcp and tcp then start client
+     */
+    public void ConnectToFab(string ip, ushort inport)
+    {
+        this.networkAddress = ip;
+        this.GetComponent<TelepathyTransport>().port = inport;
+        this.GetComponent<KcpTransport>().Port = inport;
+        StartClient();
+    }
+
+    /**
+     * Call by AssistMan.MsgtoSer_Welcome, update fabid to connidenbook after get it from client
+     * Invoke evnPlayerAdded to update on FabServer multiplayer
+     */
+    public void UpdateFabidForConn(int connid, string fabid)
+    {
+        foreach (KeyValuePair<int,string> kv in connIdenBook)
+        {
+            if (kv.Key == connid)
+            {
+                connIdenBook[connid] = fabid;
+                evnPlayerAdded.Invoke(fabid);
+                break;
+            }
+        }
+    }
+    #endregion
+
+    #region =================== testing region
+
+    public class Myevn : UnityEvent<string> { };
+
+    public Myevn addenv = new Myevn();
+    public Myevn removeevn = new Myevn();
 
     #endregion
 }
